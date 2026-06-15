@@ -1,0 +1,20 @@
+{
+  "name": "@zoe/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "bun run src/cli.ts",
+    "ingest:poe-ninja": "bun run src/cli.ts ingest:poe-ninja",
+    "summarize:builds": "bun run src/cli.ts summarize:builds",
+    "aggregate:heatmaps": "bun run src/cli.ts aggregate:heatmaps",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@zoe/domain": "workspace:*"
+  },
+  "devDependencies": {}
+}

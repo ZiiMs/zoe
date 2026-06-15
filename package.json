@@ -1,0 +1,52 @@
+{
+  "name": "zoe",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "bun@1.3.5",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "build:api": "turbo run build --filter=@zoe/api",
+    "build:desktop": "turbo run build --filter=@zoe/desktop",
+    "build:web": "turbo run build --filter=@zoe/web",
+    "build:worker": "turbo run build --filter=@zoe/worker",
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@zoe/api",
+    "dev:desktop": "turbo run dev --filter=@zoe/desktop",
+    "dev:desktop:renderer": "turbo run dev:renderer --filter=@zoe/desktop",
+    "dev:web": "turbo run dev --filter=@zoe/web",
+    "dev:worker": "turbo run dev --filter=@zoe/worker",
+    "typecheck": "turbo run typecheck",
+    "typecheck:api": "turbo run typecheck --filter=@zoe/api",
+    "typecheck:desktop": "turbo run typecheck --filter=@zoe/desktop",
+    "typecheck:web": "turbo run typecheck --filter=@zoe/web",
+    "lint": "turbo run lint",
+    "lint:api": "turbo run lint --filter=@zoe/api",
+    "lint:desktop": "turbo run lint --filter=@zoe/desktop",
+    "lint:web": "turbo run lint --filter=@zoe/web",
+    "test": "turbo run test",
+    "test:api": "turbo run test --filter=@zoe/api",
+    "test:desktop": "turbo run test --filter=@zoe/desktop",
+    "test:domain": "turbo run test --filter=@zoe/domain",
+    "worker:aggregate:heatmaps": "turbo run aggregate:heatmaps --filter=@zoe/worker",
+    "worker:ingest:poe-ninja": "turbo run ingest:poe-ninja --filter=@zoe/worker",
+    "worker:summarize:builds": "turbo run summarize:builds --filter=@zoe/worker",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@next/eslint-plugin-next": "^15.3.3",
+    "@types/node": "^22.15.29",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "globals": "^16.2.0",
+    "prettier": "^3.5.3",
+    "turbo": "2.9.16",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1",
+    "vitest": "^3.2.1"
+  }
+}

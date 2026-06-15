@@ -1,0 +1,21 @@
+{
+  "name": "@zoe/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "bun --watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@zoe/config": "workspace:*",
+    "@zoe/domain": "workspace:*",
+    "fastify": "^5.3.3",
+    "protobufjs": "^8.6.0"
+  },
+  "devDependencies": {}
+}

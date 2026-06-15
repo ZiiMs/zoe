@@ -1,0 +1,75 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**", "dist/**", "build/**"],
+      "env": ["NEXT_PUBLIC_API_BASE_URL", "VITE_ZOE_API_BASE_URL"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "API_HOST",
+        "API_PORT",
+        "POE_NINJA_BASE_URL",
+        "NEXT_PUBLIC_API_BASE_URL",
+        "VITE_ZOE_API_BASE_URL"
+      ]
+    },
+    "dev:renderer": {
+      "cache": false,
+      "persistent": true,
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "API_HOST",
+        "API_PORT",
+        "POE_NINJA_BASE_URL",
+        "NEXT_PUBLIC_API_BASE_URL",
+        "VITE_ZOE_API_BASE_URL"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "outputs": []
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!src-tauri/target/**", "!src-tauri/gen/schemas/**"],
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "API_HOST",
+        "API_PORT",
+        "POE_NINJA_BASE_URL",
+        "NEXT_PUBLIC_API_BASE_URL",
+        "VITE_ZOE_API_BASE_URL"
+      ],
+      "outputs": []
+    },
+    "ingest:poe-ninja": {
+      "cache": false,
+      "passThroughEnv": ["POE_NINJA_BASE_URL"]
+    },
+    "summarize:builds": {
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    },
+    "aggregate:heatmaps": {
+      "cache": false,
+      "passThroughEnv": ["DATABASE_URL"]
+    }
+  }
+}

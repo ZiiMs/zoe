@@ -1,0 +1,911 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import ReactDOM from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
+import { isRegistered, register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
+import { createZoeApiClient } from "@zoe/api-client";
+import {
+  attachTradeStatIds,
+  buildTradePriceCheckRequest,
+  parseTradeItemText,
+  type ParsedTradeItem,
+  type TradeListing,
+  type TradePriceCheckResult,
+  type TradeStatCandidate,
+  type TradeStatGroup
+} from "@zoe/domain";
+import { Check, ExternalLink, EyeOff, List, Search, X } from "lucide-react";
+import "./styles.css";
+
+const defaultApiBaseUrl = import.meta.env.VITE_ZOE_API_BASE_URL ?? "http://localhost:4000";
+const defaultLeague = "Standard";
+const priceCheckShortcut = "CommandOrControl+D";
+const settingsShortcut = "Shift+Space";
+const quickTradeListingLimit = 20;
+
+type OverlayMode = "passive" | "interactive";
+type OverlayView = "quick" | "settings";
+type ApiStatus = "checking" | "ready" | "offline";
+type PanelPosition = { x: number; y: number };
+type DebugLine = { id: number; message: string };
+
+function OverlayApp() {
+  const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
+  const [league, setLeague] = useState(defaultLeague);
+  const [overlayOpen, setOverlayOpen] = useState(() => !isTauriRuntime());
+  const [overlayView, setOverlayView] = useState<OverlayView>("quick");
+  const [mode, setMode] = useState<OverlayMode>("passive");
+  const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
+  const [item, setItem] = useState<ParsedTradeItem | undefined>();
+  const [stats, setStats] = useState<TradeStatGroup[]>([]);
+  const [candidates, setCandidates] = useState<TradeStatCandidate[]>([]);
+  const [result, setResult] = useState<TradePriceCheckResult | undefined>();
+  const [notice, setNotice] = useState("Hover an item in PoE2 and press Ctrl+D.");
+  const [isLoading, setIsLoading] = useState(false);
+  const [debugLines, setDebugLines] = useState<DebugLine[]>([]);
+  const [settingsPosition, setSettingsPosition] = useState<PanelPosition>(() => ({ x: 96, y: 54 }));
+
+  const api = useMemo(() => createZoeApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const apiRef = useLiveRef(api);
+  const apiStatusRef = useLiveRef(apiStatus);
+  const candidatesRef = useLiveRef(candidates);
+  const itemRef = useLiveRef(item);
+  const leagueRef = useLiveRef(league);
+  const overlayOpenRef = useLiveRef(overlayOpen);
+  const statsRef = useLiveRef(stats);
+  const settingsPositionRef = useLiveRef(settingsPosition);
+  const settingsDragRef = useRef<
+    { pointerId: number; offsetX: number; offsetY: number } | undefined
+  >(undefined);
+  const enabledCandidates = useMemo(
+    () => candidates.filter((candidate) => candidate.enabled),
+    [candidates]
+  );
+
+  function addDebug(message: string) {
+    const line = { id: Date.now() + Math.random(), message };
+    console.info(`[Zoe Trade Debug] ${message}`);
+    setDebugLines((current) => [line, ...current].slice(0, 12));
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    setApiStatus("checking");
+
+    Promise.all([api.health(), api.tradeStats()])
+      .then(([, response]) => {
+        if (!cancelled) {
+          setStats(response.stats);
+          setApiStatus("ready");
+          addDebug(`api ready, trade stat groups=${response.stats.length}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiStatus("offline");
+          addDebug(`api offline at ${apiBaseUrl}`);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  useEffect(() => {
+    const appWindow = getTauriWindow();
+    if (!appWindow) {
+      return;
+    }
+
+    async function syncOverlayWindow(nextMode: OverlayMode, isOpen: boolean) {
+      const windowWithCursorEvents = appWindow as {
+        setIgnoreCursorEvents?: (ignore: boolean) => Promise<void>;
+        setFocus: () => Promise<void>;
+        show: () => Promise<void>;
+      };
+
+      await windowWithCursorEvents.show();
+      await windowWithCursorEvents.setIgnoreCursorEvents?.(!isOpen || nextMode === "passive");
+      if (isOpen && nextMode === "interactive") {
+        await windowWithCursorEvents.setFocus();
+      }
+    }
+
+    syncOverlayWindow(mode, overlayOpen).catch(() => undefined);
+  }, [mode, overlayOpen]);
+
+  useEffect(() => {
+    function handleKeydown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeOverlay();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+
+    async function setupShortcuts() {
+      if (!isTauriRuntime()) {
+        return;
+      }
+
+      await unregisterAll().catch(() => undefined);
+
+      if (!(await isRegistered(priceCheckShortcut).catch(() => false))) {
+        await register(priceCheckShortcut, () => {
+          void captureAndPriceCheckFromShortcut();
+        });
+      }
+
+      if (!(await isRegistered(settingsShortcut).catch(() => false))) {
+        await register(settingsShortcut, () => {
+          void toggleSettingsOverlayFromShortcut();
+        });
+      }
+    }
+
+    setupShortcuts().catch((error) => {
+      if (!disposed) {
+        setNotice(`Hotkeys unavailable: ${String(error)}`);
+      }
+    });
+
+    return () => {
+      disposed = true;
+      unregisterAll().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handlePointerMove(event: PointerEvent) {
+      const drag = settingsDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) {
+        return;
+      }
+
+      setSettingsPosition(
+        constrainSettingsPosition({
+          x: event.clientX - drag.offsetX,
+          y: event.clientY - drag.offsetY
+        })
+      );
+    }
+
+    function handlePointerUp(event: PointerEvent) {
+      if (settingsDragRef.current?.pointerId === event.pointerId) {
+        settingsDragRef.current = undefined;
+      }
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+  }, []);
+
+  async function captureAndPriceCheckFromShortcut() {
+    if (!(await isPoeFocused())) {
+      return;
+    }
+
+    await captureAndPriceCheck();
+  }
+
+  async function toggleSettingsOverlayFromShortcut() {
+    if (overlayOpenRef.current) {
+      closeOverlay();
+      return;
+    }
+
+    if (!(await isPoeFocused())) {
+      return;
+    }
+
+    setOverlayView("settings");
+    setMode("interactive");
+    setOverlayOpen(true);
+  }
+
+  async function captureAndPriceCheck() {
+    setOverlayView("quick");
+    setIsLoading(true);
+    setNotice("Reading item text...");
+    setResult(undefined);
+
+    try {
+      const rawText = await invoke<string>("capture_item_text");
+      const parsed = parseTradeItemText(rawText);
+      const activeStats = statsRef.current.length
+        ? statsRef.current
+        : await refreshTradeStats(apiRef.current).catch(() => []);
+      const nextCandidates = attachTradeStatIds(parsed.statCandidates, activeStats);
+      const mappedCount = nextCandidates.filter((candidate) => candidate.tradeStatId).length;
+      const enabledCount = nextCandidates.filter((candidate) => candidate.enabled).length;
+      const unmappedLabels = nextCandidates
+        .filter((candidate) => !candidate.tradeStatId)
+        .slice(0, 4)
+        .map((candidate) => candidate.label.replace(/^Pseudo:\s*/i, ""));
+
+      addDebug(
+        `capture raw=${rawText.length} chars, mods=${parsed.modifiers.length}, candidates=${nextCandidates.length}, mapped=${mappedCount}, enabled=${enabledCount}`
+      );
+      if (parsed.parseWarnings.length) {
+        addDebug(`parse warnings: ${parsed.parseWarnings.join(" | ")}`);
+      }
+      if (unmappedLabels.length) {
+        addDebug(`unmapped stats: ${unmappedLabels.join(" | ")}`);
+      }
+
+      setItem(parsed);
+      setCandidates(nextCandidates);
+      setOverlayOpen(true);
+      setMode("interactive");
+      setNotice(parsed.parseWarnings[0] ?? "Searching comparable listings...");
+
+      if (apiStatusRef.current === "ready") {
+        await runPriceCheck(nextCandidates, parsed, apiRef.current);
+      }
+    } catch (error) {
+      setOverlayOpen(true);
+      setMode("interactive");
+      addDebug(`capture failed: ${String(error)}`);
+      setNotice(String(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function runPriceCheck(
+    nextCandidates = candidatesRef.current,
+    nextItem = itemRef.current,
+    activeApi = apiRef.current
+  ) {
+    if (!nextItem) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      if (apiStatusRef.current !== "ready") {
+        await refreshTradeStats(activeApi);
+      }
+      const request = buildTradePriceCheckRequest(
+        nextItem,
+        leagueRef.current,
+        nextCandidates,
+        quickTradeListingLimit
+      );
+      addDebug(
+        `search league=${request.league}, filters=${request.filters.length}, limit=${request.limit ?? 10}, item=${request.item.baseType ?? "unknown"}`
+      );
+      if (request.filters.length) {
+        addDebug(
+          `filters: ${request.filters
+            .slice(0, 5)
+            .map(
+              (filter) =>
+                `${filter.tradeStatId ?? "unmapped"} min=${filter.min ?? "-"} max=${filter.max ?? "-"}`
+            )
+            .join(" | ")}`
+        );
+      }
+      const response = await activeApi.priceCheck(request);
+      setResult(response.result);
+      addDebug(
+        `result query=${response.result.queryId ?? "none"}, total=${response.result.total}, fetched=${response.result.listings.length}, resolvedFilters=${response.result.filters.length}`
+      );
+      setNotice(
+        response.result.filters.length
+          ? "Showing comparable listings."
+          : "No searchable modifiers matched trade metadata."
+      );
+    } catch (error) {
+      setResult(undefined);
+      addDebug(`search failed: ${String(error)}`);
+      setNotice(`Price check failed: ${String(error)}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function updateCandidate(id: string, patch: Partial<TradeStatCandidate>) {
+    setCandidates((current) =>
+      current.map((candidate) => (candidate.id === id ? { ...candidate, ...patch } : candidate))
+    );
+  }
+
+  async function refreshTradeStats(activeApi = apiRef.current) {
+    addDebug(`api check ${apiBaseUrl}`);
+    try {
+      const [, response] = await Promise.all([activeApi.health(), activeApi.tradeStats()]);
+      setStats(response.stats);
+      setApiStatus("ready");
+      addDebug(`api ready, trade stat groups=${response.stats.length}`);
+      return response.stats;
+    } catch (error) {
+      setApiStatus("offline");
+      addDebug(`api unavailable: ${String(error)}`);
+      throw error;
+    }
+  }
+
+  function closeOverlay() {
+    setOverlayOpen(false);
+    setMode("passive");
+  }
+
+  function beginSettingsDrag(event: React.PointerEvent<HTMLElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, label")) {
+      return;
+    }
+
+    settingsDragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - settingsPositionRef.current.x,
+      offsetY: event.clientY - settingsPositionRef.current.y
+    };
+  }
+
+  const panelStyle =
+    overlayView === "settings"
+      ? ({ left: settingsPosition.x, top: settingsPosition.y } satisfies React.CSSProperties)
+      : undefined;
+
+  return (
+    <main
+      className={`overlay ${overlayOpen ? "overlay-open" : "overlay-closed"} overlay-${mode} view-${overlayView}`}
+    >
+      {overlayOpen ? (
+        <section
+          className={`trade-panel ${overlayView === "quick" ? "quick-panel" : "settings-panel"}`}
+          style={panelStyle}
+          aria-label="Zoe trade overlay"
+        >
+          {overlayView === "quick" ? (
+            <QuickPricePanel
+              apiStatus={apiStatus}
+              candidates={candidates}
+              debugLines={debugLines}
+              isLoading={isLoading}
+              item={item}
+              league={league}
+              notice={notice}
+              result={result}
+              onCapture={() => void captureAndPriceCheck()}
+              onChange={updateCandidate}
+              onClose={closeOverlay}
+              onSearch={() => void runPriceCheck()}
+            />
+          ) : (
+            <SettingsPanel
+              apiBaseUrl={apiBaseUrl}
+              apiStatus={apiStatus}
+              candidates={candidates}
+              debugLines={debugLines}
+              enabledCount={enabledCandidates.length}
+              isLoading={isLoading}
+              item={item}
+              league={league}
+              notice={notice}
+              result={result}
+              onApiBaseUrlChange={setApiBaseUrl}
+              onCapture={() => void captureAndPriceCheck()}
+              onChange={updateCandidate}
+              onClose={closeOverlay}
+              onLeagueChange={setLeague}
+              onPassive={() => setMode("passive")}
+              onStartDrag={beginSettingsDrag}
+            />
+          )}
+        </section>
+      ) : null}
+    </main>
+  );
+}
+
+function QuickPricePanel({
+  apiStatus,
+  candidates,
+  debugLines,
+  isLoading,
+  item,
+  league,
+  notice,
+  result,
+  onCapture,
+  onChange,
+  onClose,
+  onSearch
+}: {
+  apiStatus: ApiStatus;
+  candidates: TradeStatCandidate[];
+  debugLines: DebugLine[];
+  isLoading: boolean;
+  item?: ParsedTradeItem | undefined;
+  league: string;
+  notice: string;
+  result?: TradePriceCheckResult | undefined;
+  onCapture: () => void;
+  onChange: (id: string, patch: Partial<TradeStatCandidate>) => void;
+  onClose: () => void;
+  onSearch: () => void;
+}) {
+  const listedCount = result?.total ?? 0;
+  const mappedCount = candidates.filter((candidate) => candidate.tradeStatId).length;
+  const hasSearchError = notice.startsWith("Price check failed:");
+
+  return (
+    <>
+      <header className="quick-header">
+        <div>
+          <strong>{item?.name ?? "Item price check"}</strong>
+          <strong>{item?.baseType ?? "Ready"}</strong>
+        </div>
+        <button className="mini-icon-button" title="Close overlay" type="button" onClick={onClose}>
+          <X aria-hidden="true" />
+        </button>
+      </header>
+
+      <section className="quick-meta" aria-label="Item summary">
+        <span>{league}</span>
+        <span>ilvl: {item?.itemLevel ?? "--"}</span>
+      </section>
+
+      <section className="quick-market" aria-label="Market status">
+        <div>
+          <span>Market status</span>
+          <strong>{isLoading ? "..." : hasSearchError ? "Error" : `${listedCount} Listed`}</strong>
+        </div>
+        <button
+          className="quick-market-button"
+          title="Refresh price check"
+          type="button"
+          onClick={onCapture}
+        >
+          <List aria-hidden="true" />
+        </button>
+      </section>
+
+      <div className="quick-section-label">
+        <span>Item modifiers {candidates.length ? `${mappedCount}/${candidates.length}` : ""}</span>
+        <b>⌃</b>
+      </div>
+
+      <section className="quick-mods" aria-label="Search filters">
+        {candidates.length ? (
+          candidates.map((candidate) => (
+            <ModifierRow candidate={candidate} compact key={candidate.id} onChange={onChange} />
+          ))
+        ) : (
+          <div className="empty-state compact-empty">{notice}</div>
+        )}
+      </section>
+
+      <footer className="quick-actions">
+        <button title="Run price check" type="button" onClick={onSearch}>
+          <Search aria-hidden="true" />
+          <span>Search</span>
+        </button>
+        <a
+          aria-disabled={!result?.tradeUrl}
+          href={result?.tradeUrl ?? "#"}
+          onClick={(event) => {
+            if (!result?.tradeUrl) {
+              event.preventDefault();
+            }
+          }}
+          target="_blank"
+          rel="noreferrer"
+          title="Open trade search"
+        >
+          <ExternalLink aria-hidden="true" />
+          <span>Trade</span>
+        </a>
+      </footer>
+
+      <section className="quick-result-strip" aria-label="Fetched listings">
+        <div className="quick-sales-heading">
+          <span>Sales</span>
+          <span>{result ? `${result.listings.length}/${result.total}` : "0"}</span>
+        </div>
+        <div className="quick-sales-list">
+          {(result?.listings ?? []).map((listing) => (
+            <div className="quick-result-row" key={listing.id}>
+              <strong>{formatPrice(listing)}</strong>
+              <span>{formatItemLevel(listing.itemLevel)}</span>
+              <span>{formatListedAge(listing.listedAt)}</span>
+            </div>
+          ))}
+          {result && result.listings.length === 0 ? (
+            <div className="quick-result-row muted-result">No fetched listings</div>
+          ) : null}
+          {!result ? (
+            <div className="quick-result-row muted-result">Search to load listings</div>
+          ) : null}
+        </div>
+      </section>
+
+      <DebugPanel lines={debugLines} compact />
+
+      <footer className="quick-footer">
+        <span>{apiStatus === "ready" ? notice : apiStatus}</span>
+      </footer>
+    </>
+  );
+}
+
+function SettingsPanel({
+  apiBaseUrl,
+  apiStatus,
+  candidates,
+  debugLines,
+  enabledCount,
+  isLoading,
+  item,
+  league,
+  notice,
+  result,
+  onApiBaseUrlChange,
+  onCapture,
+  onChange,
+  onClose,
+  onLeagueChange,
+  onPassive,
+  onStartDrag
+}: {
+  apiBaseUrl: string;
+  apiStatus: ApiStatus;
+  candidates: TradeStatCandidate[];
+  debugLines: DebugLine[];
+  enabledCount: number;
+  isLoading: boolean;
+  item?: ParsedTradeItem | undefined;
+  league: string;
+  notice: string;
+  result?: TradePriceCheckResult | undefined;
+  onApiBaseUrlChange: (value: string) => void;
+  onCapture: () => void;
+  onChange: (id: string, patch: Partial<TradeStatCandidate>) => void;
+  onClose: () => void;
+  onLeagueChange: (value: string) => void;
+  onPassive: () => void;
+  onStartDrag: (event: React.PointerEvent<HTMLElement>) => void;
+}) {
+  return (
+    <>
+      <header className="panel-header draggable-header" onPointerDown={onStartDrag}>
+        <div>
+          <p className="eyebrow">Zoe Trade</p>
+          <h1>{item?.name ?? "Overlay settings"}</h1>
+          <p className="subtitle">
+            {[item?.baseType, item?.rarity, item?.itemLevel ? `ilvl ${item.itemLevel}` : undefined]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+        <div className="header-actions">
+          <StatusPill label={apiStatus} />
+          <button
+            className="icon-button"
+            title="Click-through mode"
+            type="button"
+            onClick={onPassive}
+          >
+            <EyeOff aria-hidden="true" />
+          </button>
+          <button className="icon-button" title="Close overlay" type="button" onClick={onClose}>
+            <X aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+
+      <section className="settings-grid">
+        <label>
+          API URL
+          <input value={apiBaseUrl} onChange={(event) => onApiBaseUrlChange(event.target.value)} />
+        </label>
+        <label>
+          League
+          <input value={league} onChange={(event) => onLeagueChange(event.target.value)} />
+        </label>
+        <p>Use Windowed or Windowed Fullscreen. If PoE2 runs as admin, run Zoe as admin too.</p>
+      </section>
+
+      <div className="content-grid">
+        <section className="modifiers">
+          <div className="section-title">
+            <span>Search filters</span>
+            <button className="text-button" type="button" onClick={onCapture}>
+              <Search aria-hidden="true" />
+              Ctrl+D
+            </button>
+          </div>
+
+          {candidates.length ? (
+            <div className="modifier-list">
+              {candidates.map((candidate) => (
+                <ModifierRow candidate={candidate} key={candidate.id} onChange={onChange} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p>{notice}</p>
+            </div>
+          )}
+        </section>
+
+        <section className="results">
+          <div className="section-title">
+            <span>Listings</span>
+            <span className="muted">
+              {isLoading ? "Searching..." : result ? `${result.total} found` : "Waiting"}
+            </span>
+          </div>
+
+          <div className="notice">{notice}</div>
+
+          {result?.tradeUrl ? (
+            <a className="trade-link" href={result.tradeUrl} target="_blank" rel="noreferrer">
+              Open trade search
+              <ExternalLink aria-hidden="true" />
+            </a>
+          ) : null}
+
+          <div className="listing-list">
+            {result?.listings.map((listing) => (
+              <article className="listing" key={listing.id}>
+                <div>
+                  <strong>{listing.itemName}</strong>
+                  <span>{listing.seller ?? "Unknown seller"}</span>
+                </div>
+                <b>{formatPrice(listing)}</b>
+              </article>
+            ))}
+          </div>
+
+          {result && result.listings.length === 0 ? (
+            <div className="empty-state">No listings returned for this filter set.</div>
+          ) : null}
+
+          <DebugPanel lines={debugLines} />
+        </section>
+      </div>
+
+      <footer className="footer-bar">
+        <span>{enabledCount} enabled</span>
+        <span>Shift+Space toggle</span>
+        <span>Esc close</span>
+      </footer>
+    </>
+  );
+}
+
+function DebugPanel({ compact = false, lines }: { compact?: boolean; lines: DebugLine[] }) {
+  if (!lines.length) {
+    return null;
+  }
+
+  return (
+    <details className={compact ? "debug-panel compact-debug" : "debug-panel"}>
+      <summary>Debug</summary>
+      <div>
+        {lines.map((line) => (
+          <p key={line.id}>{line.message}</p>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ModifierRow({
+  candidate,
+  compact = false,
+  onChange
+}: {
+  candidate: TradeStatCandidate;
+  compact?: boolean;
+  onChange: (id: string, patch: Partial<TradeStatCandidate>) => void;
+}) {
+  if (compact) {
+    return (
+      <article className={`modifier-row compact-row ${candidate.enabled ? "enabled" : ""}`}>
+        <button
+          className="check-button"
+          type="button"
+          aria-pressed={candidate.enabled}
+          onClick={() => onChange(candidate.id, { enabled: !candidate.enabled })}
+        >
+          {candidate.enabled ? <Check aria-hidden="true" /> : null}
+        </button>
+        <div className="modifier-copy">
+          <strong>{formatQuickModifier(candidate.label)}</strong>
+        </div>
+        <div className="quick-value-control">
+          <input
+            aria-label={`${candidate.label} minimum`}
+            type="number"
+            value={candidate.min}
+            onChange={(event) => onChange(candidate.id, { min: Number(event.target.value) })}
+          />
+          <input
+            aria-label={`${candidate.label} maximum`}
+            type="number"
+            value={candidate.max ?? ""}
+            onChange={(event) =>
+              onChange(candidate.id, {
+                max: event.target.value ? Number(event.target.value) : undefined
+              })
+            }
+            placeholder="max"
+          />
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article
+      className={`modifier-row ${candidate.enabled ? "enabled" : ""} ${compact ? "compact-row" : ""}`}
+    >
+      <button
+        className="check-button"
+        type="button"
+        aria-pressed={candidate.enabled}
+        onClick={() => onChange(candidate.id, { enabled: !candidate.enabled })}
+      >
+        {candidate.enabled ? <Check aria-hidden="true" /> : null}
+      </button>
+      <div className="modifier-copy">
+        <strong>{candidate.label.replace(/^Pseudo:\s*/i, "")}</strong>
+        <span>
+          {candidate.source === "pseudo" ? <Badge>Pseudo</Badge> : candidate.source}
+          {candidate.tradeStatId ? null : <Badge muted>Unmapped</Badge>}
+        </span>
+      </div>
+      <label className="value-input">
+        min
+        <input
+          type="number"
+          value={candidate.min}
+          onChange={(event) => onChange(candidate.id, { min: Number(event.target.value) })}
+        />
+      </label>
+      <label className="value-input">
+        max
+        <input
+          type="number"
+          value={candidate.max ?? ""}
+          onChange={(event) =>
+            onChange(candidate.id, {
+              max: event.target.value ? Number(event.target.value) : undefined
+            })
+          }
+        />
+      </label>
+    </article>
+  );
+}
+
+function formatQuickModifier(label: string) {
+  return label
+    .replace(/^Pseudo:\s*/i, "")
+    .replace(/^\+?\d+(?:\.\d+)?%?\s*(?:to|increased)?\s*/i, "")
+    .replace(/\s+\((?:implicit|explicit|crafted|fractured|enchant)\)$/i, "")
+    .trim();
+}
+
+function Badge({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
+  return <em className={muted ? "badge badge-muted" : "badge"}>{children}</em>;
+}
+
+function StatusPill({ label }: { label: ApiStatus }) {
+  return <span className={`status-pill status-${label}`}>{label}</span>;
+}
+
+function formatPrice(listing: TradeListing) {
+  return `${listing.priceAmount ?? "?"} ${listing.priceCurrency ?? ""}`.trim();
+}
+
+function formatItemLevel(itemLevel?: number) {
+  return typeof itemLevel === "number" ? `ilvl ${itemLevel}` : "ilvl --";
+}
+
+function formatListedAge(listedAt?: string) {
+  if (!listedAt) {
+    return "unknown";
+  }
+
+  const listedTime = new Date(listedAt).getTime();
+  if (!Number.isFinite(listedTime)) {
+    return "unknown";
+  }
+
+  const diffMs = Math.max(0, Date.now() - listedTime);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) {
+    return `${days}d ago`;
+  }
+
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+function useLiveRef<T>(value: T) {
+  const ref = useRef(value);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref;
+}
+
+async function isPoeFocused() {
+  if (!isTauriRuntime()) {
+    return true;
+  }
+
+  return invoke<boolean>("is_poe_focused").catch(() => false);
+}
+
+function constrainSettingsPosition(position: PanelPosition): PanelPosition {
+  const width = 960;
+  const height = 720;
+  const margin = 18;
+  const maxX = Math.max(
+    margin,
+    window.innerWidth - Math.min(width, window.innerWidth - margin * 2) - margin
+  );
+  const maxY = Math.max(
+    margin,
+    window.innerHeight - Math.min(height, window.innerHeight - margin * 2) - margin
+  );
+
+  return {
+    x: Math.min(Math.max(position.x, margin), maxX),
+    y: Math.min(Math.max(position.y, margin), maxY)
+  };
+}
+
+function isTauriRuntime() {
+  return "__TAURI_INTERNALS__" in window;
+}
+
+function getTauriWindow() {
+  if (!isTauriRuntime()) {
+    return undefined;
+  }
+
+  try {
+    return getCurrentWindow();
+  } catch {
+    return undefined;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <OverlayApp />
+  </React.StrictMode>
+);
