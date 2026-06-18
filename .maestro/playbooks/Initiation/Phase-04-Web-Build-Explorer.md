@@ -22,10 +22,11 @@ This phase turns the Next.js web app into a stronger build discovery surface for
   - Reuse `@zoe/ui` primitives and existing formatting helpers before creating new UI code.
   - Completion note: updated `apps/web/app/builds-page.tsx` to add a per-row freshness/source column using each build's `capturedAt` and `source`, while preserving the existing rank, character/account, class/ascendancy, level, top DPS, defenses, skills, and gear cells. Replaced the single class-distribution card with reusable summary panels for class distribution plus top skills, supports, and gear from the existing `BuildSearchResponse.filters` data, with fallback messages when summaries are absent. Validation: `bunx prettier --check apps/web/app/builds-page.tsx .maestro/playbooks/Initiation/Phase-04-Web-Build-Explorer.md`, `bun run typecheck:web`, `bun run lint:web` (passes with existing `<img>` warnings), `bun run --filter @zoe/web test` (no web test files found, exits 0), and `bun run build:web`. No images were attached or analyzed for this task.
 
-- [ ] Improve build detail pages:
+- [x] Improve build detail pages:
   - Show skills, supports, items, defensive stats, metadata, and passive or heatmap-related data from the current API response.
   - Provide clear fallback states when a build detail is missing or fixture-backed.
   - Keep navigation back to the build list and preserve the selected league/filter context where practical.
+  - Completion note: expanded `apps/web/app/builds/[id]/page.tsx` with a clear unavailable-detail fallback, filter-preserving back navigation, poe.ninja outbound link, metadata panel, full item detail panel, keystone panel, passive-signal panel, empty skill fallback, and item tooltips in the equipment grid. Existing skill/support groups, defenses, flasks, jewels, and passive tree rendering are preserved. Validation: `bunx prettier --check "apps/web/app/builds/[id]/page.tsx"`, `bun run typecheck:web`, `bun run lint:web` (passes with existing `<img>` warnings), `bun run --filter @zoe/web test` (no web test files found, exits 0), and `bun run build:web`. No images were attached or analyzed for this task.
 
 - [ ] Add visual and interaction polish appropriate for an operational dashboard:
   - Use stable table widths, compact controls, icons from `lucide-react`, and responsive constraints so text does not overlap on mobile or desktop.
