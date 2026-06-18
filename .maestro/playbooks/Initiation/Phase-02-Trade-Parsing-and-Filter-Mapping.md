@@ -35,13 +35,18 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
   - Completion notes:
     - `packages/domain/src/trade.ts` now normalizes hyphenated numeric ranges before scalar number placeholders, preserves signed parsed values, strips parenthetical tags from normalized stat text, and avoids adding stray spaces before percentages.
     - Range-like modifiers now use the upper bound as the candidate value/default minimum, including `Adds # to # ...` and `#-#% ...` forms.
-    - Added regression coverage for range parsing, signed values, `(local)` tags, inline source markers, and partial pseudo coverage so unrelated exact modifiers such as `all Elemental Resistances` remain enabled.
+    - Added regression coverage for range parsing, signed values, `(local)` tags, inline source markers, and partial pseudo coverage so unrelated exact modifiers remain enabled.
     - Validation run: `bun run test:domain` passed with 1 test file and 10 tests; `bun run typecheck` passed for all 9 packages.
 
-- [ ] Add pseudo stat suggestions for high-value trade checks:
+- [x] Add pseudo stat suggestions for high-value trade checks:
   - Total elemental resistance, total chaos resistance, total maximum life, total maximum mana, total maximum energy shield, total attributes, and any existing locally supported pseudo stats.
   - Use deterministic IDs, labels, covered modifier IDs, values, and default minimums.
   - Avoid guessing unsupported official stat IDs in `packages/domain`; let `attachTradeStatIds` resolve them from API metadata.
+  - Completion notes:
+    - `packages/domain/src/trade.ts` now keeps deterministic pseudo suggestions for total elemental resistance, total chaos resistance, total maximum life, total maximum mana, total maximum energy shield, and total attributes without assigning official `tradeStatId` values in the domain layer.
+    - Added weighted support for `to all Elemental Resistances` and `to all Attributes`, counting those as three stat contributions and covering the originating exact modifier so the overlay does not double-filter it by default.
+    - Added domain coverage for pseudo IDs, labels, values, default minimums, covered modifier IDs, enabled pseudo candidates, and unset domain-level trade stat IDs.
+    - Validation run: `bun run test:domain` passed with 1 test file and 11 tests; `bun run typecheck` passed for all 9 packages.
 
 - [ ] Strengthen official trade stat ID attachment:
   - Improve exact and fuzzy matching in `findTradeStatId` only where tests prove the current behavior is insufficient.

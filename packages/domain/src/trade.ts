@@ -117,13 +117,15 @@ const pseudoMatchers = {
   fireResistance: /\bto fire resistance\b/i,
   coldResistance: /\bto cold resistance\b/i,
   lightningResistance: /\bto lightning resistance\b/i,
+  allElementalResistances: /\bto all elemental resistances\b/i,
   chaosResistance: /\bto chaos resistance\b/i,
   maximumLife: /\bto maximum life\b/i,
   maximumMana: /\bto maximum mana\b/i,
   maximumEnergyShield: /\bto maximum energy shield\b/i,
   strength: /\bto strength\b/i,
   dexterity: /\bto dexterity\b/i,
-  intelligence: /\bto intelligence\b/i
+  intelligence: /\bto intelligence\b/i,
+  allAttributes: /\bto all attributes\b/i
 } as const;
 
 export function parseTradeItemText(rawText: string): ParsedTradeItem {
@@ -476,10 +478,11 @@ function createPseudoSuggestions(modifiers: ParsedItemModifier[]): PseudoStatSug
   const elemental = sumMatchingModifiers(modifiers, [
     pseudoMatchers.fireResistance,
     pseudoMatchers.coldResistance,
-    pseudoMatchers.lightningResistance
+    pseudoMatchers.lightningResistance,
+    { matcher: pseudoMatchers.allElementalResistances, multiplier: 3 }
   ]);
 
-  if (elemental.coveredModifierIds.length >= 2) {
+  if (elemental.contributionCount >= 2) {
     suggestions.push({
       id: "pseudo-total-elemental-resistance",
       label: "Pseudo: total elemental resistance",
@@ -521,9 +524,10 @@ function createPseudoSuggestions(modifiers: ParsedItemModifier[]): PseudoStatSug
   const attributes = sumMatchingModifiers(modifiers, [
     pseudoMatchers.strength,
     pseudoMatchers.dexterity,
-    pseudoMatchers.intelligence
+    pseudoMatchers.intelligence,
+    { matcher: pseudoMatchers.allAttributes, multiplier: 3 }
   ]);
-  if (attributes.coveredModifierIds.length >= 2) {
+  if (attributes.contributionCount >= 2) {
     suggestions.push({
       id: "pseudo-total-attributes",
       label: "Pseudo: total attributes",
@@ -555,19 +559,28 @@ function addSinglePseudo(
   }
 }
 
-function sumMatchingModifiers(modifiers: ParsedItemModifier[], matchers: RegExp[]) {
+type PseudoMatcher = RegExp | { matcher: RegExp; multiplier: number };
+
+function sumMatchingModifiers(modifiers: ParsedItemModifier[], matchers: PseudoMatcher[]) {
   return modifiers.reduce(
     (result, modifier) => {
-      if (!matchers.some((matcher) => matcher.test(modifier.text))) {
+      const matched = matchers.find((matcher) => {
+        const regex = matcher instanceof RegExp ? matcher : matcher.matcher;
+        return regex.test(modifier.text);
+      });
+      if (!matched) {
         return result;
       }
 
+      const multiplier = matched instanceof RegExp ? 1 : matched.multiplier;
+
       return {
-        value: result.value + dominantValue(modifier),
-        coveredModifierIds: [...result.coveredModifierIds, modifier.id]
+        value: result.value + dominantValue(modifier) * multiplier,
+        coveredModifierIds: [...result.coveredModifierIds, modifier.id],
+        contributionCount: result.contributionCount + multiplier
       };
     },
-    { value: 0, coveredModifierIds: [] as string[] }
+    { value: 0, coveredModifierIds: [] as string[], contributionCount: 0 }
   );
 }
 

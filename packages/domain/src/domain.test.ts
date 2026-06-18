@@ -146,6 +146,86 @@ Item Level: 80
     expect(request.filters.some((filter) => filter.label.includes("Fire Resistance"))).toBe(false);
   });
 
+  it("creates deterministic pseudo suggestions for high-value trade stats", () => {
+    const item = parseTradeItemText(`Item Class: Rings
+Rarity: Rare
+Glyph Band
+Amethyst Ring
+--------
+Explicit Modifiers:
++10% to Fire Resistance
++11% to Cold Resistance
++12% to Lightning Resistance
++7% to all Elemental Resistances
++8% to Chaos Resistance
++50 to maximum Life
++40 to maximum Mana
++30 to maximum Energy Shield
++5 to Strength
++5 to Dexterity
++5 to Intelligence
++6 to all Attributes`);
+
+    expect(item.pseudoSuggestions).toEqual([
+      {
+        id: "pseudo-total-elemental-resistance",
+        label: "Pseudo: total elemental resistance",
+        value: 54,
+        min: 54,
+        coveredModifierIds: ["mod-0", "mod-1", "mod-2", "mod-3"]
+      },
+      {
+        id: "pseudo-total-chaos-resistance",
+        label: "Pseudo: total chaos resistance",
+        value: 8,
+        min: 8,
+        coveredModifierIds: ["mod-4"]
+      },
+      {
+        id: "pseudo-total-maximum-life",
+        label: "Pseudo: total maximum life",
+        value: 50,
+        min: 50,
+        coveredModifierIds: ["mod-5"]
+      },
+      {
+        id: "pseudo-total-maximum-mana",
+        label: "Pseudo: total maximum mana",
+        value: 40,
+        min: 40,
+        coveredModifierIds: ["mod-6"]
+      },
+      {
+        id: "pseudo-total-maximum-energy-shield",
+        label: "Pseudo: total maximum energy shield",
+        value: 30,
+        min: 30,
+        coveredModifierIds: ["mod-7"]
+      },
+      {
+        id: "pseudo-total-attributes",
+        label: "Pseudo: total attributes",
+        value: 33,
+        min: 33,
+        coveredModifierIds: ["mod-8", "mod-9", "mod-10", "mod-11"]
+      }
+    ]);
+
+    expect(item.statCandidates.filter((candidate) => candidate.source === "pseudo")).toEqual(
+      item.pseudoSuggestions.map((suggestion) =>
+        expect.objectContaining({
+          id: suggestion.id,
+          label: suggestion.label,
+          value: suggestion.value,
+          min: suggestion.min,
+          enabled: true,
+          coveredModifierIds: suggestion.coveredModifierIds,
+          tradeStatId: undefined
+        })
+      )
+    );
+  });
+
   it("handles malformed clipboard text without throwing", () => {
     const item = parseTradeItemText("not an item");
 
@@ -286,7 +366,7 @@ Adds 12 to 24 Physical Damage
     );
   });
 
-  it("keeps exact candidates enabled when pseudo coverage is only partial", () => {
+  it("covers all elemental resistance modifiers in total elemental resistance", () => {
     const item = parseTradeItemText(`Item Class: Rings
 Rarity: Rare
 Storm Loop
@@ -307,11 +387,11 @@ Explicit Modifiers:
 
     expect(elementalPseudo).toMatchObject({
       enabled: true,
-      value: 38,
-      coveredModifierIds: ["mod-0", "mod-1", "mod-2"]
+      value: 65,
+      coveredModifierIds: ["mod-0", "mod-1", "mod-2", "mod-3"]
     });
     expect(allElementalExact).toMatchObject({
-      enabled: true,
+      enabled: false,
       min: 9
     });
   });
