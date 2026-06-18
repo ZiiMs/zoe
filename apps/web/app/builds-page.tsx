@@ -5,12 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createZoeApiClient } from "@zoe/api-client";
 import { readWebEnv } from "@zoe/config";
-import type {
-  BuildFilterGroup,
-  BuildSearchParams,
-  BuildSearchResponse,
-  BuildSnapshot
-} from "@zoe/domain";
+import type { BuildFilterGroup, BuildSearchResponse, BuildSnapshot } from "@zoe/domain";
 import {
   Badge,
   Button,
@@ -36,6 +31,13 @@ import {
   Sword,
   UserRound
 } from "lucide-react";
+import {
+  activeValuesForGroup,
+  buildDetailHref,
+  createBuildFilterHref,
+  optionsForGroup,
+  parseBuildSearchParams
+} from "./builds-query";
 
 const api = createZoeApiClient({
   baseUrl: readWebEnv({ NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL })
@@ -59,18 +61,6 @@ const sortOptions = [
 ] as const;
 
 const filterOptionBatchSize = 24;
-
-type ActiveBuildSearchParams = {
-  league: string;
-  search: string;
-  className: string[];
-  keystones: string[];
-  skills: string[];
-  supports: string[];
-  gear: string[];
-  sort: NonNullable<BuildSearchParams["sort"]>;
-  order: NonNullable<BuildSearchParams["order"]>;
-};
 
 export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }) {
   const router = useRouter();
@@ -159,25 +149,13 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
   }
 
   function filterHref(groupId: BuildFilterGroup["id"], value: string) {
-    const key = filterParamKey(groupId);
-    const next = new URLSearchParams(searchParams.toString());
-    const values = splitParam(next.get(key));
-    const nextValues = values.includes(value)
-      ? values.filter((item) => item !== value)
-      : [...values, value];
-
-    if (nextValues.length) {
-      next.set(key, nextValues.join(","));
-    } else {
-      next.delete(key);
-    }
-
-    if (!next.get("league")) {
-      next.set("league", data.league.url);
-    }
-    next.delete("page");
-
-    return `${pathname}?${next.toString()}`;
+    return createBuildFilterHref({
+      fallbackLeague: data.league.url,
+      groupId,
+      pathname,
+      searchParams: new URLSearchParams(searchParams.toString()),
+      value
+    });
   }
 
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
@@ -891,76 +869,6 @@ function StatPill({ label, value }: { label: string; value: string }) {
       <div className="text-lg font-semibold">{value}</div>
     </div>
   );
-}
-
-function buildDetailHref(metadata: BuildSnapshot["metadata"]) {
-  return `/builds/${encodeURIComponent(`${metadata.league}:${metadata.accountName}:${metadata.characterName}`)}`;
-}
-
-function parseBuildSearchParams(
-  searchParams: URLSearchParams,
-  fallbackLeague: string
-): ActiveBuildSearchParams {
-  return {
-    league: searchParams.get("league") ?? fallbackLeague,
-    search: searchParams.get("search") ?? "",
-    className: splitParam(searchParams.get("class")),
-    keystones: splitParam(searchParams.get("keystones")),
-    skills: splitParam(searchParams.get("skills")),
-    supports: splitParam(searchParams.get("supports")),
-    gear: splitParam(searchParams.get("gear")),
-    sort: parseSort(searchParams.get("sort")),
-    order: parseOrder(searchParams.get("order"))
-  };
-}
-
-function activeValuesForGroup(
-  params: ReturnType<typeof parseBuildSearchParams>,
-  groupId: BuildFilterGroup["id"]
-) {
-  switch (groupId) {
-    case "class":
-      return params.className;
-    case "keystones":
-      return params.keystones;
-    case "skills":
-      return params.skills;
-    case "supports":
-      return params.supports;
-    case "gear":
-      return params.gear;
-  }
-}
-
-function filterParamKey(groupId: BuildFilterGroup["id"]) {
-  return groupId === "class" ? "class" : groupId;
-}
-
-function optionsForGroup(filters: BuildFilterGroup[], groupId: BuildFilterGroup["id"]) {
-  return filters.find((group) => group.id === groupId)?.options ?? [];
-}
-
-function splitParam(value: string | null) {
-  return (
-    value
-      ?.split(",")
-      .map((item) => item.trim())
-      .filter(Boolean) ?? []
-  );
-}
-
-function parseSort(value: string | null): NonNullable<BuildSearchParams["sort"]> {
-  return value === "dps" ||
-    value === "life" ||
-    value === "energyshield" ||
-    value === "ehp" ||
-    value === "level"
-    ? value
-    : "level";
-}
-
-function parseOrder(value: string | null): NonNullable<BuildSearchParams["order"]> {
-  return value === "asc" ? "asc" : "desc";
 }
 
 function formatNumber(value: number) {
