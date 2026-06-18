@@ -1,12 +1,26 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createZoeApiClient } from "@zoe/api-client";
 import { readWebEnv } from "@zoe/config";
-import type { BuildFilterGroup, BuildSearchParams, BuildSearchResponse, BuildSnapshot } from "@zoe/domain";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, cn } from "@zoe/ui";
+import type {
+  BuildFilterGroup,
+  BuildSearchParams,
+  BuildSearchResponse,
+  BuildSnapshot
+} from "@zoe/domain";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  cn
+} from "@zoe/ui";
 import {
   Boxes,
   Brain,
@@ -37,6 +51,8 @@ const filterIcons = {
 const sortOptions = [
   { field: "level", label: "Level" },
   { field: "dps", label: "DPS" },
+  { field: "life", label: "Life" },
+  { field: "energyshield", label: "ES" },
   { field: "ehp", label: "EHP" }
 ] as const;
 
@@ -60,7 +76,8 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
   const searchParams = useSearchParams();
   const [data, setData] = useState(initialData);
   const [searchDraft, setSearchDraft] = useState(searchParams.get("search") ?? "");
-  const [isPending, startTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const queryString = searchParams.toString();
 
   const activeParams = useMemo(
@@ -81,30 +98,38 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
 
   useEffect(() => {
     let cancelled = false;
-    startTransition(() => {
-      api
-        .builds({
-          league: activeParams.league,
-          search: activeParams.search,
-          className: activeParams.className,
-          keystones: activeParams.keystones,
-          skills: activeParams.skills,
-          supports: activeParams.supports,
-          gear: activeParams.gear,
-          sort: activeParams.sort,
-          order: activeParams.order
-        })
-        .then((response) => {
-          if (!cancelled) {
-            setData(response);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setData((current) => ({ ...current, source: "fixture" }));
-          }
-        });
-    });
+
+    setIsRefreshing(true);
+    setRefreshFailed(false);
+
+    api
+      .builds({
+        league: activeParams.league,
+        search: activeParams.search,
+        className: activeParams.className,
+        keystones: activeParams.keystones,
+        skills: activeParams.skills,
+        supports: activeParams.supports,
+        gear: activeParams.gear,
+        sort: activeParams.sort,
+        order: activeParams.order
+      })
+      .then((response) => {
+        if (!cancelled) {
+          setData(response);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRefreshFailed(true);
+          setData((current) => ({ ...current, source: "fixture" }));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsRefreshing(false);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -127,6 +152,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
       } else {
         next.delete(key);
       }
+      next.delete("page");
     });
   }
 
@@ -134,7 +160,9 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
     const key = filterParamKey(groupId);
     const next = new URLSearchParams(searchParams.toString());
     const values = splitParam(next.get(key));
-    const nextValues = values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+    const nextValues = values.includes(value)
+      ? values.filter((item) => item !== value)
+      : [...values, value];
 
     if (nextValues.length) {
       next.set(key, nextValues.join(","));
@@ -145,6 +173,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
     if (!next.get("league")) {
       next.set("league", data.league.url);
     }
+    next.delete("page");
 
     return `${pathname}?${next.toString()}`;
   }
@@ -169,15 +198,21 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Badge variant="warning">Builds</Badge>
-              <Badge variant={data.source === "poe.ninja" ? "success" : "outline"} className="gap-1.5">
+              <Badge
+                variant={data.source === "poe.ninja" ? "success" : "outline"}
+                className="gap-1.5"
+              >
                 <RadioTower className="h-3.5 w-3.5" aria-hidden="true" />
                 {data.source === "poe.ninja" ? "poe.ninja live" : "fixture fallback"}
               </Badge>
               <Badge variant="outline">{data.league.displayName}</Badge>
-              {isPending ? <Badge variant="secondary">Refreshing</Badge> : null}
+              {isRefreshing ? <Badge variant="secondary">Refreshing</Badge> : null}
+              {refreshFailed ? <Badge variant="outline">API fallback</Badge> : null}
             </div>
             <p className="text-sm text-muted-foreground">Path of Exile 2 ladder intelligence</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal sm:text-4xl">Build Observatory</h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-normal sm:text-4xl">
+              Build Observatory
+            </h1>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm sm:flex">
             <StatPill label="Characters" value={formatNumber(data.total)} />
@@ -215,7 +250,53 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                   </span>
                 </label>
 
-                <form className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2" onSubmit={handleSearchSubmit}>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="grid gap-2 text-xs text-muted-foreground">
+                    Sort
+                    <span className="relative">
+                      <select
+                        className="h-10 w-full appearance-none border border-input bg-muted px-3 pr-9 text-sm text-foreground outline-none transition-colors focus:border-ring"
+                        value={activeParams.sort}
+                        onChange={(event) =>
+                          updateParams((next) => {
+                            next.set("sort", event.target.value);
+                          })
+                        }
+                      >
+                        {sortOptions.map((option) => (
+                          <option key={option.field} value={option.field}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                    </span>
+                  </label>
+
+                  <label className="grid gap-2 text-xs text-muted-foreground">
+                    Order
+                    <span className="relative">
+                      <select
+                        className="h-10 w-full appearance-none border border-input bg-muted px-3 pr-9 text-sm text-foreground outline-none transition-colors focus:border-ring"
+                        value={activeParams.order}
+                        onChange={(event) =>
+                          updateParams((next) => {
+                            next.set("order", event.target.value);
+                          })
+                        }
+                      >
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
+                    </span>
+                  </label>
+                </div>
+
+                <form
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2"
+                  onSubmit={handleSearchSubmit}
+                >
                   <div className="flex min-w-0 flex-1 items-center gap-2 border border-input bg-muted px-3 text-sm text-muted-foreground">
                     <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <input
@@ -268,42 +349,55 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                         onClick={() =>
                           updateParams((next) => {
                             next.set("sort", option.field);
-                            next.set("order", active && activeParams.order === "desc" ? "asc" : "desc");
                           })
                         }
                       >
-                        {option.label} {active ? (activeParams.order === "desc" ? "desc" : "asc") : ""}
+                        {option.label} {active ? activeParams.order : ""}
                       </Button>
                     );
                   })}
                 </div>
               </CardHeader>
               <CardContent className="min-w-0">
-                {data.builds.length ? (
-                  <div className="overflow-x-auto border border-border">
-                    <table className="w-full min-w-[1040px] border-collapse text-sm">
-                      <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
-                        <tr>
-                          <th className="px-3 py-3 font-medium">Rank</th>
-                          <th className="px-3 py-3 font-medium">Character</th>
-                          <th className="px-3 py-3 font-medium">Class</th>
-                          <th className="px-3 py-3 font-medium">Level</th>
-                          <th className="px-3 py-3 font-medium">Top DPS</th>
-                          <th className="px-3 py-3 font-medium">Defenses</th>
-                          <th className="px-3 py-3 font-medium">Main skills</th>
-                          <th className="px-3 py-3 font-medium">Key gear</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.builds.map((build, index) => (
-                          <BuildRow build={build} index={index} key={build.metadata.id} />
-                        ))}
-                      </tbody>
-                    </table>
+                <div className="relative min-h-[22rem]">
+                  {isRefreshing ? (
+                    <div className="absolute right-3 top-3 z-10 border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+                      Updating results
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "min-w-0 transition-opacity",
+                      isRefreshing ? "opacity-70" : "opacity-100"
+                    )}
+                  >
+                    {data.builds.length ? (
+                      <div className="overflow-x-auto border border-border">
+                        <table className="w-full min-w-[1040px] border-collapse text-sm">
+                          <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className="px-3 py-3 font-medium">Rank</th>
+                              <th className="px-3 py-3 font-medium">Character</th>
+                              <th className="px-3 py-3 font-medium">Class</th>
+                              <th className="px-3 py-3 font-medium">Level</th>
+                              <th className="px-3 py-3 font-medium">Top DPS</th>
+                              <th className="px-3 py-3 font-medium">Defenses</th>
+                              <th className="px-3 py-3 font-medium">Main skills</th>
+                              <th className="px-3 py-3 font-medium">Key gear</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {data.builds.map((build, index) => (
+                              <BuildRow build={build} index={index} key={build.metadata.id} />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <EmptyState activeFilterCount={activeFilterCount} onReset={resetFilters} />
+                    )}
                   </div>
-                ) : (
-                  <EmptyState onReset={resetFilters} />
-                )}
+                </div>
               </CardContent>
             </Card>
 
@@ -320,7 +414,10 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                       <span className="text-muted-foreground">{stat.percentage.toFixed(2)}%</span>
                     </div>
                     <div className="h-2 bg-muted">
-                      <div className="h-full bg-primary" style={{ width: `${Math.min(stat.percentage, 100)}%` }} />
+                      <div
+                        className="h-full bg-primary"
+                        style={{ width: `${Math.min(stat.percentage, 100)}%` }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -336,7 +433,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
 function FilterSection({
   activeValues,
   getOptionHref,
-  group,
+  group
 }: {
   activeValues: string[];
   getOptionHref: (value: string) => string;
@@ -364,7 +461,9 @@ function FilterSection({
     const nearBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 16;
 
     if (nearBottom && visibleCount < visibleOptions.length) {
-      setVisibleCount((current) => Math.min(current + filterOptionBatchSize, visibleOptions.length));
+      setVisibleCount((current) =>
+        Math.min(current + filterOptionBatchSize, visibleOptions.length)
+      );
     }
   }
 
@@ -387,54 +486,59 @@ function FilterSection({
           />
         </div>
 
-        <div
-          className="max-h-64 overflow-y-auto pr-1"
-          onScroll={handleOptionsScroll}
-        >
+        <div className="max-h-64 overflow-y-auto pr-1" onScroll={handleOptionsScroll}>
           <div className="flex flex-wrap gap-2">
             {renderedOptions.length ? (
               renderedOptions.map((option) => {
                 const active = activeValues.includes(option.value);
-                return (
-                  group.id === "class" ? (
-                    <AscendancyOption
-                      active={active}
-                      count={option.count}
-                      href={getOptionHref(option.value)}
-                      key={`${group.id}:${option.value}`}
-                      label={option.label}
-                    />
-                  ) : (
-                    <a
+                return group.id === "class" ? (
+                  <AscendancyOption
+                    active={active}
+                    count={option.count}
+                    href={getOptionHref(option.value)}
+                    key={`${group.id}:${option.value}`}
+                    label={option.label}
+                  />
+                ) : (
+                  <a
+                    className={cn(
+                      "inline-flex max-w-full items-center gap-2 border px-2.5 py-1.5 text-left text-xs transition-colors",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : "border-border bg-muted text-foreground hover:bg-accent hover:text-accent-foreground"
+                    )}
+                    href={getOptionHref(option.value)}
+                    key={`${group.id}:${option.value}`}
+                  >
+                    <span
                       className={cn(
-                        "inline-flex max-w-full items-center gap-2 border px-2.5 py-1.5 text-left text-xs transition-colors",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border bg-muted text-foreground hover:bg-accent hover:text-accent-foreground"
+                        "truncate",
+                        active ? "text-primary-foreground" : "text-foreground"
                       )}
-                      href={getOptionHref(option.value)}
-                      key={`${group.id}:${option.value}`}
                     >
-                      <span className={cn("truncate", active ? "text-primary-foreground" : "text-foreground")}>
-                        {option.label}
-                      </span>
-                      <span className={active ? "text-primary-foreground/75" : "text-muted-foreground"}>
-                        {formatCompact(option.count)}
-                      </span>
-                    </a>
-                  )
+                      {option.label}
+                    </span>
+                    <span
+                      className={active ? "text-primary-foreground/75" : "text-muted-foreground"}
+                    >
+                      {formatCompact(option.count)}
+                    </span>
+                  </a>
                 );
               })
             ) : (
-            <p className="text-sm text-muted-foreground">
-              {query ? `No ${group.label.toLowerCase()} match that search.` : "No filter options returned."}
-            </p>
+              <p className="text-sm text-muted-foreground">
+                {query
+                  ? `No ${group.label.toLowerCase()} match that search.`
+                  : "No filter options returned."}
+              </p>
             )}
           </div>
         </div>
         {visibleOptions.length > filterOptionBatchSize ? (
           <div className="text-xs text-muted-foreground">
-            Showing {formatNumber(Math.min(visibleCount, visibleOptions.length))} of {formatNumber(visibleOptions.length)}
+            Showing {formatNumber(Math.min(visibleCount, visibleOptions.length))} of{" "}
+            {formatNumber(visibleOptions.length)}
           </div>
         ) : null}
       </CardContent>
@@ -470,7 +574,9 @@ function AscendancyOption({
       <span
         className={cn(
           "mx-auto flex h-12 w-12 items-center justify-center overflow-hidden border",
-          active ? "border-primary-foreground/40 bg-primary-foreground/10" : "border-border bg-background"
+          active
+            ? "border-primary-foreground/40 bg-primary-foreground/10"
+            : "border-border bg-background"
         )}
       >
         {imageUrl ? (
@@ -479,8 +585,12 @@ function AscendancyOption({
           <span className="text-base font-semibold">{label.slice(0, 1)}</span>
         )}
       </span>
-      <span className={cn("truncate", active ? "text-primary-foreground" : "text-foreground")}>{label}</span>
-      <span className={active ? "text-primary-foreground/75" : "text-muted-foreground"}>{formatCompact(count)}</span>
+      <span className={cn("truncate", active ? "text-primary-foreground" : "text-foreground")}>
+        {label}
+      </span>
+      <span className={active ? "text-primary-foreground/75" : "text-muted-foreground"}>
+        {formatCompact(count)}
+      </span>
     </a>
   );
 }
@@ -493,7 +603,9 @@ function BuildRow({ build, index }: { build: BuildSnapshot; index: number }) {
 
   return (
     <tr className="border-t border-border align-top transition-colors hover:bg-muted/40">
-      <td className="whitespace-nowrap px-3 py-4 text-muted-foreground">#{metadata.rank ?? index + 1}</td>
+      <td className="whitespace-nowrap px-3 py-4 text-muted-foreground">
+        #{metadata.rank ?? index + 1}
+      </td>
       <td className="px-3 py-4">
         <div className="flex items-center gap-2 font-semibold">
           <UserRound className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -516,7 +628,11 @@ function BuildRow({ build, index }: { build: BuildSnapshot; index: number }) {
         />
       </td>
       <td className="px-3 py-4">
-        <DefenseMetrics life={metrics?.life} energyShield={metrics?.energyShield} ehp={metrics?.ehpLabel} />
+        <DefenseMetrics
+          life={metrics?.life}
+          energyShield={metrics?.energyShield}
+          ehp={metrics?.ehpLabel}
+        />
       </td>
       <td className="px-3 py-4">
         <ChipList items={skills} />
@@ -570,8 +686,12 @@ function DefenseMetrics({
   return (
     <div className="grid gap-1 text-xs">
       <span className="text-sm font-semibold">{ehp ?? "EHP N/A"}</span>
-      <span className="text-muted-foreground">Life {life !== undefined ? formatCompact(life) : "N/A"}</span>
-      <span className="text-muted-foreground">ES {energyShield !== undefined ? formatCompact(energyShield) : "N/A"}</span>
+      <span className="text-muted-foreground">
+        Life {life !== undefined ? formatCompact(life) : "N/A"}
+      </span>
+      <span className="text-muted-foreground">
+        ES {energyShield !== undefined ? formatCompact(energyShield) : "N/A"}
+      </span>
     </div>
   );
 }
@@ -584,7 +704,10 @@ function ChipList({ items }: { items: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((item) => (
-        <span className="max-w-44 truncate border border-border bg-muted px-2 py-1 text-xs" key={item}>
+        <span
+          className="max-w-44 truncate border border-border bg-muted px-2 py-1 text-xs"
+          key={item}
+        >
           {item}
         </span>
       ))}
@@ -592,11 +715,21 @@ function ChipList({ items }: { items: string[] }) {
   );
 }
 
-function EmptyState({ onReset }: { onReset: () => void }) {
+function EmptyState({
+  activeFilterCount,
+  onReset
+}: {
+  activeFilterCount: number;
+  onReset: () => void;
+}) {
   return (
-    <div className="grid gap-3 border border-border bg-muted p-6 text-center">
+    <div className="grid min-h-[22rem] place-content-center gap-3 border border-border bg-muted p-6 text-center">
       <div className="text-lg font-semibold">No builds match these filters</div>
-      <p className="text-sm text-muted-foreground">Clear the active filter set or choose a different league.</p>
+      <p className="text-sm text-muted-foreground">
+        {activeFilterCount > 0
+          ? "Clear the active filter set or choose a different league."
+          : "No builds were returned for this league yet."}
+      </p>
       <div>
         <Button variant="secondary" onClick={onReset}>
           Reset filters
@@ -619,7 +752,10 @@ function buildDetailHref(metadata: BuildSnapshot["metadata"]) {
   return `/builds/${encodeURIComponent(`${metadata.league}:${metadata.accountName}:${metadata.characterName}`)}`;
 }
 
-function parseBuildSearchParams(searchParams: URLSearchParams, fallbackLeague: string): ActiveBuildSearchParams {
+function parseBuildSearchParams(
+  searchParams: URLSearchParams,
+  fallbackLeague: string
+): ActiveBuildSearchParams {
   return {
     league: searchParams.get("league") ?? fallbackLeague,
     search: searchParams.get("search") ?? "",
@@ -633,7 +769,10 @@ function parseBuildSearchParams(searchParams: URLSearchParams, fallbackLeague: s
   };
 }
 
-function activeValuesForGroup(params: ReturnType<typeof parseBuildSearchParams>, groupId: BuildFilterGroup["id"]) {
+function activeValuesForGroup(
+  params: ReturnType<typeof parseBuildSearchParams>,
+  groupId: BuildFilterGroup["id"]
+) {
   switch (groupId) {
     case "class":
       return params.className;
@@ -653,11 +792,20 @@ function filterParamKey(groupId: BuildFilterGroup["id"]) {
 }
 
 function splitParam(value: string | null) {
-  return value?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
+  return (
+    value
+      ?.split(",")
+      .map((item) => item.trim())
+      .filter(Boolean) ?? []
+  );
 }
 
 function parseSort(value: string | null): NonNullable<BuildSearchParams["sort"]> {
-  return value === "dps" || value === "life" || value === "energyshield" || value === "ehp" || value === "level"
+  return value === "dps" ||
+    value === "life" ||
+    value === "energyshield" ||
+    value === "ehp" ||
+    value === "level"
     ? value
     : "level";
 }
@@ -671,7 +819,9 @@ function formatNumber(value: number) {
 }
 
 function formatCompact(value: number) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
+    value
+  );
 }
 
 function getAscendancyImageUrl(name: string) {

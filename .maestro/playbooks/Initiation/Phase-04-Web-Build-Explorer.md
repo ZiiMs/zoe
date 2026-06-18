@@ -10,10 +10,11 @@ This phase turns the Next.js web app into a stronger build discovery surface for
   - Preserve the current app-router structure and avoid adding a landing page.
   - Completion note: reviewed the requested app-router pages, shared `@zoe/ui` primitives, and API client. Existing reusable pieces include `BuildsPage`, URL-param helpers (`parseBuildSearchParams`, `filterHref`, `splitParam`), build row/detail rendering, `Badge`/`Button`/`Card`/`cn`, `createZoeApiClient().builds()` / `.build()`, and current image handling for ascendancy portraits, skill icons, item icons, and passive tree SVG output. No images were attached to this task.
 
-- [ ] Improve build list filtering and sorting:
+- [x] Improve build list filtering and sorting:
   - Ensure league, account/character search, class, keystone, skill, support, gear, sort, and order controls round-trip through URL search params.
   - Keep controls compact and scannable for repeated use.
   - Handle empty results, API fallback, loading, and refresh states without layout jumps.
+  - Completion note: expanded the build explorer controls in `apps/web/app/builds-page.tsx` so league, account/character search, class, keystone, skill, support, gear, sort, and order all stay URL-backed. Added compact sort/order selects covering all supported sort fields, kept quick sort buttons in sync with the selected order, reset pagination when filters change, and replaced transition-only refresh state with explicit refreshing/API-fallback indicators plus a stable empty/results container. Validation: `bun run typecheck:web`, `bun run lint:web` (warnings only for existing `<img>` usage), and `bun run --filter @zoe/web test` (no web test files found, exits 0). No images were attached or analyzed for this task.
 
 - [ ] Improve the build table and high-signal summary panels:
   - Show rank, character, account, class or ascendancy, level, top DPS skill, defensive metrics, main skills, key gear, and source freshness where available.
