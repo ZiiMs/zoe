@@ -127,7 +127,7 @@ export default async function BuildDetailPage({
           </div>
         </header>
 
-        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,max-content)_15rem] lg:items-start xl:grid-cols-[minmax(0,max-content)_22rem]">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,34rem)_15rem] lg:items-start xl:grid-cols-[minmax(0,34rem)_22rem]">
           <EquipmentPanel detail={detail} />
           <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
             <StatCard
@@ -238,7 +238,7 @@ function EquipmentPanel({ detail }: { detail: BuildDetail }) {
   const equipped = detail.items.filter((item) => String(item.slot) !== "24");
 
   return (
-    <section className="min-w-0 border border-border bg-card">
+    <section className="min-w-0 overflow-hidden border border-border bg-card">
       <header className="border-b border-border bg-muted/50 px-4 py-3">
         <h2 className="text-lg font-semibold">Equipment</h2>
       </header>
@@ -371,8 +371,11 @@ function InventorySlot({
           <img
             alt=""
             className="max-h-full max-w-full object-contain drop-shadow-[0_8px_10px_rgba(0,0,0,0.9)]"
+            height={96}
+            loading="lazy"
             src={item.iconUrl}
             style={{ transform: `scale(${imageScale})` }}
+            width={96}
           />
         </span>
       ) : (
@@ -389,14 +392,21 @@ function ItemTooltip({ align, item }: { align: "left" | "right"; item: BuildDeta
   return (
     <div
       className={cn(
-        "pointer-events-none absolute top-[calc(100%+0.5rem)] z-30 hidden w-80 border border-primary/40 bg-card p-3 text-left text-xs shadow-2xl group-hover/item:block",
+        "pointer-events-none absolute top-[calc(100%+0.5rem)] z-30 hidden w-[min(20rem,calc(100vw-2rem))] border border-primary/40 bg-card p-3 text-left text-xs shadow-2xl group-hover/item:block",
         align === "right" ? "right-0" : "left-0"
       )}
       aria-hidden="true"
     >
       <div className="flex items-start gap-3">
         {item.iconUrl ? (
-          <img alt="" className="h-12 w-12 shrink-0 object-contain" src={item.iconUrl} />
+          <img
+            alt=""
+            className="h-12 w-12 shrink-0 object-contain"
+            height={48}
+            loading="lazy"
+            src={item.iconUrl}
+            width={48}
+          />
         ) : null}
         <div className="min-w-0">
           <div className="font-semibold text-primary">{item.name}</div>
@@ -628,7 +638,14 @@ function KeystonePanel({ keystones }: { keystones: BuildDetailKeystone[] }) {
             <div className="grid gap-2 border border-border bg-muted p-3" key={keystone.name}>
               <div className="flex min-w-0 items-center gap-2">
                 {keystone.iconUrl ? (
-                  <img alt="" className="h-8 w-8 shrink-0 object-contain" src={keystone.iconUrl} />
+                  <img
+                    alt=""
+                    className="h-8 w-8 shrink-0 object-contain"
+                    height={32}
+                    loading="lazy"
+                    src={keystone.iconUrl}
+                    width={32}
+                  />
                 ) : null}
                 <div className="min-w-0 truncate font-semibold">{keystone.name}</div>
               </div>
@@ -703,7 +720,14 @@ function ItemListPanel({ items }: { items: BuildDetailItem[] }) {
               key={`${item.slot}:${item.name}:${index}`}
             >
               {item.iconUrl ? (
-                <img alt="" className="h-14 w-14 object-contain" src={item.iconUrl} />
+                <img
+                  alt=""
+                  className="h-14 w-14 object-contain"
+                  height={56}
+                  loading="lazy"
+                  src={item.iconUrl}
+                  width={56}
+                />
               ) : (
                 <div className="grid h-14 w-14 place-items-center border border-border bg-card text-xs text-muted-foreground">
                   {item.slot}
@@ -711,7 +735,7 @@ function ItemListPanel({ items }: { items: BuildDetailItem[] }) {
               )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="truncate font-semibold">{item.name}</div>
+                  <div className="min-w-0 truncate font-semibold">{item.name}</div>
                   <Badge variant="outline">{item.slot}</Badge>
                   {item.rarity ? <Badge variant="secondary">{item.rarity}</Badge> : null}
                 </div>
@@ -734,7 +758,14 @@ function SkillGroup({ group }: { group: BuildDetailSkillGroup }) {
     <div className="grid gap-3 border border-border bg-muted p-3">
       <div className="flex min-w-0 items-center gap-3">
         {group.iconUrl ? (
-          <img alt="" className="h-11 w-11 shrink-0 object-contain" src={group.iconUrl} />
+          <img
+            alt=""
+            className="h-11 w-11 shrink-0 object-contain"
+            height={44}
+            loading="lazy"
+            src={group.iconUrl}
+            width={44}
+          />
         ) : null}
         <div className="min-w-0">
           <div className="truncate font-semibold">{group.name}</div>
@@ -750,7 +781,14 @@ function SkillGroup({ group }: { group: BuildDetailSkillGroup }) {
             key={`${group.name}:${gem.name}`}
           >
             {gem.iconUrl ? (
-              <img alt="" className="h-5 w-5 object-contain" src={gem.iconUrl} />
+              <img
+                alt=""
+                className="h-5 w-5 shrink-0 object-contain"
+                height={20}
+                loading="lazy"
+                src={gem.iconUrl}
+                width={20}
+              />
             ) : null}
             <span className="truncate">{gem.name}</span>
             {gem.support ? <span className="text-muted-foreground">support</span> : null}
@@ -795,7 +833,16 @@ function CompactItemPanel({
 function ItemToken({ item }: { item: BuildDetailItem }) {
   return (
     <div className="group/item relative inline-flex items-center gap-2 border border-border bg-muted px-2 py-1 text-xs">
-      {item.iconUrl ? <img alt="" className="h-6 w-6 object-contain" src={item.iconUrl} /> : null}
+      {item.iconUrl ? (
+        <img
+          alt=""
+          className="h-6 w-6 shrink-0 object-contain"
+          height={24}
+          loading="lazy"
+          src={item.iconUrl}
+          width={24}
+        />
+      ) : null}
       <span className="max-w-44 truncate">{item.name}</span>
       <ItemTooltip align="left" item={item} />
     </div>

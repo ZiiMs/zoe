@@ -28,10 +28,11 @@ This phase turns the Next.js web app into a stronger build discovery surface for
   - Keep navigation back to the build list and preserve the selected league/filter context where practical.
   - Completion note: expanded `apps/web/app/builds/[id]/page.tsx` with a clear unavailable-detail fallback, filter-preserving back navigation, poe.ninja outbound link, metadata panel, full item detail panel, keystone panel, passive-signal panel, empty skill fallback, and item tooltips in the equipment grid. Existing skill/support groups, defenses, flasks, jewels, and passive tree rendering are preserved. Validation: `bunx prettier --check "apps/web/app/builds/[id]/page.tsx"`, `bun run typecheck:web`, `bun run lint:web` (passes with existing `<img>` warnings), `bun run --filter @zoe/web test` (no web test files found, exits 0), and `bun run build:web`. No images were attached or analyzed for this task.
 
-- [ ] Add visual and interaction polish appropriate for an operational dashboard:
+- [x] Add visual and interaction polish appropriate for an operational dashboard:
   - Use stable table widths, compact controls, icons from `lucide-react`, and responsive constraints so text does not overlap on mobile or desktop.
   - Avoid nested cards, decorative backgrounds, oversized hero sections, and one-note color palettes.
   - Ensure images have useful dimensions, empty alt text for decorative class portraits, and no broken layout if an image URL fails.
+  - Completion note: tightened the build explorer table and detail layouts in `apps/web/app/builds-page.tsx` and `apps/web/app/builds/[id]/page.tsx` with fixed table column tracks, compact responsive sort/filter controls, truncation on long character/account/class/item text, bounded equipment/detail columns, constrained hover tooltips, and explicit dimensions/lazy loading for decorative class, skill, item, and keystone images. Existing `lucide-react` icons and `@zoe/ui` primitives were reused, and the dashboard remains card-based without nested cards or hero/decoration changes. Validation: `bunx prettier --check apps/web/app/builds-page.tsx "apps/web/app/builds/[id]/page.tsx"`, `bun run typecheck:web`, `bun run lint:web` (passes with existing `<img>` warnings), and `bun run build:web`. No images were attached or analyzed for this task.
 
 - [ ] Add focused web tests or component-level checks where the repo already supports them:
   - Cover URL param parsing, filter toggling helpers, empty result rendering, and build detail fallback if practical.

@@ -252,7 +252,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                   </span>
                 </label>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 min-[22rem]:grid-cols-2">
                   <label className="grid gap-2 text-xs text-muted-foreground">
                     Sort
                     <span className="relative">
@@ -340,11 +340,12 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                   </CardDescription>
                   <CardTitle>Build ladder</CardTitle>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 min-[28rem]:flex min-[28rem]:flex-wrap">
                   {sortOptions.map((option) => {
                     const active = activeParams.sort === option.field;
                     return (
                       <Button
+                        className="min-w-0"
                         key={option.field}
                         variant={active ? "secondary" : "outline"}
                         size="sm"
@@ -375,7 +376,18 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                   >
                     {data.builds.length ? (
                       <div className="overflow-x-auto border border-border">
-                        <table className="w-full min-w-[1040px] border-collapse text-sm">
+                        <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
+                          <colgroup>
+                            <col className="w-16" />
+                            <col className="w-48" />
+                            <col className="w-40" />
+                            <col className="w-20" />
+                            <col className="w-56" />
+                            <col className="w-32" />
+                            <col className="w-48" />
+                            <col className="w-44" />
+                            <col className="w-36" />
+                          </colgroup>
                           <thead className="bg-muted text-left text-xs uppercase text-muted-foreground">
                             <tr>
                               <th className="px-3 py-3 font-medium">Rank</th>
@@ -562,7 +574,14 @@ function AscendancyOption({
         )}
       >
         {imageUrl ? (
-          <img alt="" className="h-full w-full object-cover" src={imageUrl} />
+          <img
+            alt=""
+            className="h-full w-full object-cover"
+            height={48}
+            loading="lazy"
+            src={imageUrl}
+            width={48}
+          />
         ) : (
           <span className="text-base font-semibold">{label.slice(0, 1)}</span>
         )}
@@ -588,18 +607,18 @@ function BuildRow({ build, index }: { build: BuildSnapshot; index: number }) {
       <td className="whitespace-nowrap px-3 py-4 text-muted-foreground">
         #{metadata.rank ?? index + 1}
       </td>
-      <td className="px-3 py-4">
+      <td className="min-w-0 px-3 py-4">
         <div className="flex items-center gap-2 font-semibold">
           <UserRound className="h-4 w-4 text-primary" aria-hidden="true" />
-          <Link className="hover:text-primary" href={buildDetailHref(metadata)}>
+          <Link className="min-w-0 truncate hover:text-primary" href={buildDetailHref(metadata)}>
             {metadata.characterName}
           </Link>
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">{metadata.accountName}</div>
+        <div className="mt-1 truncate text-xs text-muted-foreground">{metadata.accountName}</div>
       </td>
-      <td className="px-3 py-4">
-        <div>{metadata.ascendancyName ?? metadata.className}</div>
-        <div className="text-xs text-muted-foreground">{metadata.league}</div>
+      <td className="min-w-0 px-3 py-4">
+        <div className="truncate">{metadata.ascendancyName ?? metadata.className}</div>
+        <div className="truncate text-xs text-muted-foreground">{metadata.league}</div>
       </td>
       <td className="px-3 py-4 text-2xl font-semibold">{metadata.level}</td>
       <td className="px-3 py-4">
@@ -646,7 +665,14 @@ function TopDpsSkill({
     <div className="flex min-w-0 items-center gap-2">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
         {iconUrl ? (
-          <img alt="" className="h-9 w-9 object-contain" src={iconUrl} />
+          <img
+            alt=""
+            className="h-9 w-9 object-contain"
+            height={36}
+            loading="lazy"
+            src={iconUrl}
+            width={36}
+          />
         ) : (
           <span className="text-xs font-semibold text-primary">{skill?.slice(0, 2) ?? "?"}</span>
         )}
