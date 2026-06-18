@@ -11,13 +11,24 @@ import {
   parseTradeItemText,
   type ParsedTradeItem,
   type TradeLeague,
-  type TradeListing,
   type TradePriceCheckRequest,
   type TradePriceCheckResult,
   type TradeStatCandidate,
   type TradeStatGroup
 } from "@zoe/domain";
 import { Check, ExternalLink, EyeOff, List, Search, X } from "lucide-react";
+import {
+  calculateQuickPanelPosition,
+  constrainSettingsPosition,
+  formatItemLevel,
+  formatLeagueLabel,
+  formatListedAge,
+  formatPrice,
+  formatQuickModifier,
+  selectTradeLeague,
+  type CursorPosition,
+  type PanelPosition
+} from "./overlay-helpers";
 import "./styles.css";
 
 const defaultApiBaseUrl = readDesktopEnv({
@@ -30,8 +41,6 @@ const quickTradeListingLimit = 20;
 type OverlayMode = "passive" | "interactive";
 type OverlayView = "quick" | "settings";
 type ApiStatus = "checking" | "ready" | "offline";
-type PanelPosition = { x: number; y: number };
-type CursorPosition = { x: number; y: number };
 type DebugLine = { id: number; message: string };
 type DebugDetails = {
   apiBaseUrl: string;
@@ -45,9 +54,6 @@ type DebugDetails = {
   result?: TradePriceCheckResult | undefined;
 };
 
-const quickPanelSize = { width: 340, height: 690 };
-const panelMargin = 18;
-const cursorPanelGap = 18;
 const zoeShortcuts = [priceCheckShortcut, settingsShortcut] as const;
 
 declare global {
@@ -224,10 +230,13 @@ function OverlayApp() {
       }
 
       setSettingsPosition(
-        constrainSettingsPosition({
-          x: event.clientX - drag.offsetX,
-          y: event.clientY - drag.offsetY
-        })
+        constrainSettingsPosition(
+          {
+            x: event.clientX - drag.offsetX,
+            y: event.clientY - drag.offsetY
+          },
+          getViewportSize()
+        )
       );
     }
 
@@ -470,7 +479,7 @@ function OverlayApp() {
       return;
     }
 
-    setQuickPosition(calculateQuickPanelPosition(cursor));
+    setQuickPosition(calculateQuickPanelPosition(cursor, getViewportSize()));
   }
 
   function beginSettingsDrag(event: React.PointerEvent<HTMLElement>) {
@@ -1105,82 +1114,12 @@ function ModifierRow({
   );
 }
 
-function formatQuickModifier(label: string) {
-  return label
-    .replace(/^Pseudo:\s*/i, "")
-    .replace(/^\+?\d+(?:\.\d+)?%?\s*(?:to|increased)?\s*/i, "")
-    .replace(/\s+\((?:implicit|explicit|crafted|fractured|enchant)\)$/i, "")
-    .trim();
-}
-
 function Badge({ children, muted = false }: { children: React.ReactNode; muted?: boolean }) {
   return <em className={muted ? "badge badge-muted" : "badge"}>{children}</em>;
 }
 
 function StatusPill({ label }: { label: ApiStatus }) {
   return <span className={`status-pill status-${label}`}>{label}</span>;
-}
-
-function selectTradeLeague(leagues: TradeLeague[], currentLeague: string) {
-  if (currentLeague && leagues.some((league) => league.id === currentLeague)) {
-    return currentLeague;
-  }
-
-  const poe2Leagues = leagues.filter((league) => !league.realm || league.realm === "poe2");
-  const primaryLeagues = poe2Leagues.filter(
-    (league) => !/\b(?:hardcore|ssf|solo self-found)\b/i.test(`${league.id} ${league.text}`)
-  );
-
-  return primaryLeagues[0]?.id ?? poe2Leagues[0]?.id ?? leagues[0]?.id ?? "";
-}
-
-function formatLeagueLabel(leagues: TradeLeague[], leagueId: string) {
-  if (!leagueId) {
-    return "Loading league";
-  }
-
-  return leagues.find((league) => league.id === leagueId)?.text ?? leagueId;
-}
-
-function formatPrice(listing: TradeListing) {
-  return `${listing.priceAmount ?? "?"} ${listing.priceCurrency ?? ""}`.trim();
-}
-
-function formatItemLevel(itemLevel?: number) {
-  return typeof itemLevel === "number" ? `ilvl ${itemLevel}` : "ilvl --";
-}
-
-function formatListedAge(listedAt?: string) {
-  if (!listedAt) {
-    return "unknown";
-  }
-
-  const listedTime = new Date(listedAt).getTime();
-  if (!Number.isFinite(listedTime)) {
-    return "unknown";
-  }
-
-  const diffMs = Math.max(0, Date.now() - listedTime);
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) {
-    return "now";
-  }
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  if (days < 30) {
-    return `${days}d ago`;
-  }
-
-  const months = Math.floor(days / 30);
-  return `${months}mo ago`;
 }
 
 function useLiveRef<T>(value: T) {
@@ -1233,39 +1172,12 @@ async function getPoeFocusStatus(): Promise<{ focused: boolean; message?: string
   }
 }
 
-function constrainSettingsPosition(position: PanelPosition): PanelPosition {
-  const width = 960;
-  const height = 720;
-  const maxX = Math.max(
-    panelMargin,
-    window.innerWidth - Math.min(width, window.innerWidth - panelMargin * 2) - panelMargin
-  );
-  const maxY = Math.max(
-    panelMargin,
-    window.innerHeight - Math.min(height, window.innerHeight - panelMargin * 2) - panelMargin
-  );
-
-  return {
-    x: Math.min(Math.max(position.x, panelMargin), maxX),
-    y: Math.min(Math.max(position.y, panelMargin), maxY)
-  };
-}
-
-function calculateQuickPanelPosition(cursor: CursorPosition): PanelPosition {
-  const availableWidth = Math.max(quickPanelSize.width, window.innerWidth);
-  const availableHeight = Math.max(quickPanelSize.height, window.innerHeight);
-  const maxX = Math.max(panelMargin, availableWidth - quickPanelSize.width - panelMargin);
-  const maxY = Math.max(panelMargin, availableHeight - quickPanelSize.height - panelMargin);
-  const leftOfCursor = cursor.x - quickPanelSize.width - cursorPanelGap;
-  const rightOfCursor = cursor.x + cursorPanelGap;
-  const x = leftOfCursor >= panelMargin ? leftOfCursor : Math.min(rightOfCursor, maxX);
-  const y = Math.min(Math.max(cursor.y - 40, panelMargin), maxY);
-
-  return { x, y };
-}
-
 function isTauriRuntime() {
   return "__TAURI_INTERNALS__" in window;
+}
+
+function getViewportSize() {
+  return { width: window.innerWidth, height: window.innerHeight };
 }
 
 function getTauriWindow() {

@@ -41,10 +41,13 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Layout notes: `apps/desktop/src/styles.css` adds compact debug grid styling so long URLs, warnings, unmapped labels, and trade stat IDs wrap within the settings panel.
   - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, `bun run test:desktop`, and `bun run build:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
-- [ ] Add desktop tests where practical:
+- [x] Add desktop tests where practical:
   - Cover pure helpers for league selection, price formatting, listed age formatting, quick panel positioning, and any extracted parser-to-UI mapping.
   - Mock Tauri APIs rather than requiring a Tauri runtime for unit tests.
   - Keep visual changes validated through renderer build and manual browser verification if no component test harness exists.
+  - Completed desktop test notes: extracted renderer-only pure UI helpers into `apps/desktop/src/overlay-helpers.ts` so tests do not import or mount the Tauri/React entrypoint. `apps/desktop/src/main.tsx` now reuses those helpers with explicit viewport dimensions for quick panel and settings panel positioning.
+  - Test coverage added in `apps/desktop/src/overlay-helpers.test.ts` for league preservation and PoE2 league preference, league label fallback, price and item-level formatting, listed-age buckets and invalid/future dates, compact modifier label cleanup, quick panel cursor positioning bounds, and settings panel constraints.
+  - Validation: `bun run test:desktop`, `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run build:desktop` passed.
 
 - [ ] Run desktop validation and fix failures:
   - `bun run test:desktop`
