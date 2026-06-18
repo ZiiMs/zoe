@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildTradePriceCheckRequest, parseTradeItemText } from "@zoe/domain";
 import { createServer } from "./server";
 import { __poeNinjaInternals, decodeSearchResult } from "./poe-ninja";
 import { __tradeInternals } from "./trade";
@@ -259,6 +260,149 @@ describe("api server", () => {
     expect(payload.result.total).toBe(1);
     expect(payload.result.listings[0]).toMatchObject({ priceAmount: 3, seller: "seller" });
     expect(requestedUrls.some((url) => url.includes("/api/trade2/search/Standard"))).toBe(true);
+  });
+
+  it("smokes the parsed rare item price-check path with mocked trade responses", async () => {
+    __tradeInternals.resetCaches();
+    const searchBodies: unknown[] = [];
+    const server = createServer({
+      fetcher: async (input, init) => {
+        const url = String(input);
+
+        if (url.includes("/api/trade2/data/stats")) {
+          return new Response(
+            JSON.stringify({
+              result: [
+                {
+                  id: "pseudo",
+                  label: "Pseudo",
+                  entries: [
+                    {
+                      id: "pseudo.pseudo_total_elemental_resistance",
+                      text: "Pseudo: total elemental resistance",
+                      type: "pseudo"
+                    },
+                    {
+                      id: "pseudo.pseudo_total_chaos_resistance",
+                      text: "Pseudo: total chaos resistance",
+                      type: "pseudo"
+                    },
+                    {
+                      id: "pseudo.pseudo_total_maximum_life",
+                      text: "Pseudo: total maximum life",
+                      type: "pseudo"
+                    }
+                  ]
+                },
+                {
+                  id: "explicit",
+                  label: "Explicit",
+                  entries: [
+                    {
+                      id: "explicit.stat_3299347043",
+                      text: "+# to Strength",
+                      type: "explicit"
+                    }
+                  ]
+                }
+              ]
+            })
+          );
+        }
+
+        if (url.includes("/api/trade2/search/Standard")) {
+          searchBodies.push(JSON.parse(String(init?.body)));
+          return new Response(JSON.stringify({ id: "rare-query", result: ["rare-1"], total: 7 }));
+        }
+
+        if (url.includes("/api/trade2/fetch/rare-1")) {
+          return new Response(
+            JSON.stringify({
+              result: [
+                {
+                  id: "rare-1",
+                  item: { name: "Storm Loop", typeLine: "Ruby Ring", ilvl: 80 },
+                  listing: {
+                    account: { name: "RingTrader" },
+                    price: { amount: 11, currency: "exalted" },
+                    indexed: "2026-06-11T12:00:00Z",
+                    whisper: "@RingTrader Hi, I would like to buy your Storm Loop"
+                  }
+                }
+              ]
+            })
+          );
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+    const item = parseTradeItemText(`Item Class: Rings
+Rarity: Rare
+Storm Loop
+Ruby Ring
+--------
+Requirements:
+Level: 52
+--------
+Item Level: 80
+--------
++15% to Fire Resistance (implicit)
+--------
++15% to Lightning Resistance
++12% to Chaos Resistance
++64 to maximum Life
++23 to Strength`);
+    const request = buildTradePriceCheckRequest(item, "Standard", item.statCandidates, 10);
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: request
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      result: {
+        total: number;
+        tradeUrl: string;
+        filters: Array<{ tradeStatId?: string; min?: number }>;
+        listings: Array<{
+          itemName: string;
+          seller?: string;
+          priceAmount?: number;
+          priceCurrency?: string;
+          tradeUrl?: string;
+        }>;
+      };
+    }>();
+    expect(payload.result.total).toBe(7);
+    expect(payload.result.tradeUrl).toBe(
+      "https://www.pathofexile.com/trade2/search/poe2/Standard/rare-query"
+    );
+    expect(payload.result.listings[0]).toMatchObject({
+      itemName: "Storm Loop",
+      seller: "RingTrader",
+      priceAmount: 11,
+      priceCurrency: "exalted",
+      tradeUrl: payload.result.tradeUrl
+    });
+    expect(payload.result.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          tradeStatId: "pseudo.pseudo_total_elemental_resistance",
+          min: 30
+        }),
+        expect.objectContaining({ tradeStatId: "explicit.stat_3299347043", min: 23 })
+      ])
+    );
+    expect(searchBodies[0]).toMatchObject({
+      query: {
+        status: { option: "online" },
+        type: "Ruby Ring"
+      },
+      sort: { price: "asc" }
+    });
   });
 
   it("fetches the first two trade result pages in batches", async () => {

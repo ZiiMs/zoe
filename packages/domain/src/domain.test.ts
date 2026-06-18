@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { aggregatePassiveHeatmap, normalizePoeNinjaBuild, parseTradeItemText, summarizeBuild } from "./index";
+import {
+  aggregatePassiveHeatmap,
+  buildTradePriceCheckRequest,
+  normalizePoeNinjaBuild,
+  parseTradeItemText,
+  summarizeBuild
+} from "./index";
 
 const capturedAt = "2026-06-05T12:00:00.000Z";
 
@@ -61,8 +67,7 @@ describe("domain normalization and summaries", () => {
 });
 
 describe("trade item parsing", () => {
-  it("parses rare item text and creates pseudo resistance filters", () => {
-    const item = parseTradeItemText(`Item Class: Rings
+  const rareRingText = `Item Class: Rings
 Rarity: Rare
 Storm Loop
 Ruby Ring
@@ -77,13 +82,17 @@ Item Level: 80
 +15% to Lightning Resistance
 +12% to Chaos Resistance
 +64 to maximum Life
-+23 to Strength`);
++23 to Strength`;
+
+  it("parses rare item text and creates pseudo resistance filters", () => {
+    const item = parseTradeItemText(rareRingText);
 
     expect(item.itemClass).toBe("Rings");
     expect(item.rarity).toBe("Rare");
     expect(item.name).toBe("Storm Loop");
     expect(item.baseType).toBe("Ruby Ring");
     expect(item.itemLevel).toBe(80);
+    expect(item.parseWarnings).toEqual([]);
     expect(item.modifiers).toHaveLength(5);
     expect(item.pseudoSuggestions).toEqual(
       expect.arrayContaining([
@@ -92,10 +101,49 @@ Item Level: 80
       ])
     );
 
-    const fireExact = item.statCandidates.find((candidate) => candidate.label.includes("Fire Resistance"));
-    const elementalPseudo = item.statCandidates.find((candidate) => candidate.id === "pseudo-total-elemental-resistance");
+    const fireExact = item.statCandidates.find((candidate) =>
+      candidate.label.includes("Fire Resistance")
+    );
+    const elementalPseudo = item.statCandidates.find(
+      (candidate) => candidate.id === "pseudo-total-elemental-resistance"
+    );
+    const strengthExact = item.statCandidates.find((candidate) =>
+      candidate.label.includes("Strength")
+    );
     expect(fireExact?.enabled).toBe(false);
     expect(elementalPseudo?.enabled).toBe(true);
+    expect(strengthExact).toMatchObject({
+      enabled: true,
+      min: 23,
+      normalizedText: "# to strength",
+      source: "explicit"
+    });
+  });
+
+  it("builds a price-check request from enabled exact and pseudo filters", () => {
+    const item = parseTradeItemText(rareRingText);
+    const request = buildTradePriceCheckRequest(item, "Standard", item.statCandidates, 5);
+
+    expect(request.item).toBe(item);
+    expect(request.league).toBe("Standard");
+    expect(request.limit).toBe(5);
+    expect(request.onlineOnly).toBe(true);
+    expect(request.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "pseudo-total-elemental-resistance",
+          min: 30,
+          source: "pseudo"
+        }),
+        expect.objectContaining({
+          id: "exact-mod-4",
+          label: "+23 to Strength",
+          min: 23,
+          source: "explicit"
+        })
+      ])
+    );
+    expect(request.filters.some((filter) => filter.label.includes("Fire Resistance"))).toBe(false);
   });
 
   it("handles malformed clipboard text without throwing", () => {
