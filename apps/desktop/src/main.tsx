@@ -27,7 +27,12 @@ type OverlayMode = "passive" | "interactive";
 type OverlayView = "quick" | "settings";
 type ApiStatus = "checking" | "ready" | "offline";
 type PanelPosition = { x: number; y: number };
+type CursorPosition = { x: number; y: number };
 type DebugLine = { id: number; message: string };
+
+const quickPanelSize = { width: 340, height: 690 };
+const panelMargin = 18;
+const cursorPanelGap = 18;
 
 function OverlayApp() {
   const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
@@ -43,6 +48,7 @@ function OverlayApp() {
   const [notice, setNotice] = useState("Hover an item in PoE2 and press Ctrl+D.");
   const [isLoading, setIsLoading] = useState(false);
   const [debugLines, setDebugLines] = useState<DebugLine[]>([]);
+  const [quickPosition, setQuickPosition] = useState<PanelPosition | undefined>();
   const [settingsPosition, setSettingsPosition] = useState<PanelPosition>(() => ({ x: 96, y: 54 }));
 
   const api = useMemo(() => createZoeApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -216,6 +222,7 @@ function OverlayApp() {
   }
 
   async function captureAndPriceCheck() {
+    await positionQuickPanelNearCursor();
     setOverlayView("quick");
     setIsLoading(true);
     setNotice("Reading item text...");
@@ -343,6 +350,19 @@ function OverlayApp() {
     setMode("passive");
   }
 
+  async function positionQuickPanelNearCursor() {
+    if (!isTauriRuntime()) {
+      return;
+    }
+
+    const cursor = await invoke<CursorPosition>("cursor_position").catch(() => undefined);
+    if (!cursor) {
+      return;
+    }
+
+    setQuickPosition(calculateQuickPanelPosition(cursor));
+  }
+
   function beginSettingsDrag(event: React.PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
     if (target.closest("button, a, input, label")) {
@@ -359,7 +379,9 @@ function OverlayApp() {
   const panelStyle =
     overlayView === "settings"
       ? ({ left: settingsPosition.x, top: settingsPosition.y } satisfies React.CSSProperties)
-      : undefined;
+      : quickPosition
+        ? ({ left: quickPosition.x, top: quickPosition.y } satisfies React.CSSProperties)
+        : undefined;
 
   return (
     <main
@@ -872,20 +894,32 @@ async function isPoeFocused() {
 function constrainSettingsPosition(position: PanelPosition): PanelPosition {
   const width = 960;
   const height = 720;
-  const margin = 18;
   const maxX = Math.max(
-    margin,
-    window.innerWidth - Math.min(width, window.innerWidth - margin * 2) - margin
+    panelMargin,
+    window.innerWidth - Math.min(width, window.innerWidth - panelMargin * 2) - panelMargin
   );
   const maxY = Math.max(
-    margin,
-    window.innerHeight - Math.min(height, window.innerHeight - margin * 2) - margin
+    panelMargin,
+    window.innerHeight - Math.min(height, window.innerHeight - panelMargin * 2) - panelMargin
   );
 
   return {
-    x: Math.min(Math.max(position.x, margin), maxX),
-    y: Math.min(Math.max(position.y, margin), maxY)
+    x: Math.min(Math.max(position.x, panelMargin), maxX),
+    y: Math.min(Math.max(position.y, panelMargin), maxY)
   };
+}
+
+function calculateQuickPanelPosition(cursor: CursorPosition): PanelPosition {
+  const availableWidth = Math.max(quickPanelSize.width, window.innerWidth);
+  const availableHeight = Math.max(quickPanelSize.height, window.innerHeight);
+  const maxX = Math.max(panelMargin, availableWidth - quickPanelSize.width - panelMargin);
+  const maxY = Math.max(panelMargin, availableHeight - quickPanelSize.height - panelMargin);
+  const leftOfCursor = cursor.x - quickPanelSize.width - cursorPanelGap;
+  const rightOfCursor = cursor.x + cursorPanelGap;
+  const x = leftOfCursor >= panelMargin ? leftOfCursor : Math.min(rightOfCursor, maxX);
+  const y = Math.min(Math.max(cursor.y - 40, panelMargin), maxY);
+
+  return { x, y };
 }
 
 function isTauriRuntime() {

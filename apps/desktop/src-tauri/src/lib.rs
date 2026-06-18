@@ -4,12 +4,22 @@ use tauri::{
     Manager,
 };
 
+#[derive(serde::Serialize)]
+struct CursorPosition {
+    x: f64,
+    y: f64,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![capture_item_text, is_poe_focused])
+        .invoke_handler(tauri::generate_handler![
+            capture_item_text,
+            cursor_position,
+            is_poe_focused
+        ])
         .setup(|app| {
             let handle = app.handle();
             let show_overlay = MenuItem::with_id(handle, "show_overlay", "Show Overlay", true, None::<&str>)?;
@@ -89,6 +99,34 @@ fn is_poe_focused() -> bool {
             ) || normalized.contains("pathofexile")
         })
         .unwrap_or(false)
+}
+
+#[tauri::command]
+fn cursor_position(window: tauri::Window) -> Option<CursorPosition> {
+    cursor_position_in_window(&window)
+}
+
+#[cfg(target_os = "windows")]
+fn cursor_position_in_window(window: &tauri::Window) -> Option<CursorPosition> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    unsafe {
+        let mut cursor = POINT { x: 0, y: 0 };
+        GetCursorPos(&mut cursor).ok()?;
+        let window_position = window.outer_position().ok()?;
+        let scale_factor = window.scale_factor().ok()?;
+
+        Some(CursorPosition {
+            x: f64::from(cursor.x - window_position.x) / scale_factor,
+            y: f64::from(cursor.y - window_position.y) / scale_factor,
+        })
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn cursor_position_in_window(_window: &tauri::Window) -> Option<CursorPosition> {
+    None
 }
 
 #[cfg(target_os = "windows")]
