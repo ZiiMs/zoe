@@ -128,13 +128,21 @@ function OverlayApp() {
       };
 
       await windowWithCursorEvents.show();
-      await windowWithCursorEvents.setIgnoreCursorEvents?.(!isOpen || nextMode === "passive");
+      await windowWithCursorEvents
+        .setIgnoreCursorEvents?.(!isOpen || nextMode === "passive")
+        .catch((error) => {
+          addDebug(`click-through unavailable: ${String(error)}`);
+        });
       if (isOpen && nextMode === "interactive") {
-        await windowWithCursorEvents.setFocus();
+        await windowWithCursorEvents.setFocus().catch((error) => {
+          addDebug(`overlay focus unavailable: ${String(error)}`);
+        });
       }
     }
 
-    syncOverlayWindow(mode, overlayOpen).catch(() => undefined);
+    syncOverlayWindow(mode, overlayOpen).catch((error) => {
+      addDebug(`overlay window sync failed: ${String(error)}`);
+    });
   }, [mode, overlayOpen]);
 
   useEffect(() => {
@@ -215,7 +223,11 @@ function OverlayApp() {
   }, []);
 
   async function captureAndPriceCheckFromShortcut() {
-    if (!(await isPoeFocused())) {
+    const focus = await getPoeFocusStatus();
+    if (!focus.focused) {
+      if (focus.message) {
+        addDebug(focus.message);
+      }
       return;
     }
 
@@ -228,7 +240,11 @@ function OverlayApp() {
       return;
     }
 
-    if (!(await isPoeFocused())) {
+    const focus = await getPoeFocusStatus();
+    if (!focus.focused) {
+      if (focus.message) {
+        addDebug(focus.message);
+      }
       return;
     }
 
@@ -414,8 +430,12 @@ function OverlayApp() {
       return;
     }
 
-    const cursor = await invoke<CursorPosition>("cursor_position").catch(() => undefined);
+    const cursor = await invoke<CursorPosition>("cursor_position").catch((error) => {
+      addDebug(`cursor position unavailable: ${String(error)}`);
+      return undefined;
+    });
     if (!cursor) {
+      addDebug("cursor position unavailable; using default quick panel position");
       return;
     }
 
@@ -984,12 +1004,27 @@ function useLiveRef<T>(value: T) {
   return ref;
 }
 
-async function isPoeFocused() {
+async function getPoeFocusStatus(): Promise<{ focused: boolean; message?: string }> {
   if (!isTauriRuntime()) {
-    return true;
+    return { focused: true };
   }
 
-  return invoke<boolean>("is_poe_focused").catch(() => false);
+  try {
+    const focused = await invoke<boolean>("is_poe_focused");
+    if (focused) {
+      return { focused: true };
+    }
+
+    return {
+      focused: false,
+      message: "Path of Exile 2 is not focused; shortcut ignored."
+    };
+  } catch (error) {
+    return {
+      focused: false,
+      message: `Path of Exile focus check unavailable: ${String(error)}`
+    };
+  }
 }
 
 function constrainSettingsPosition(position: PanelPosition): PanelPosition {

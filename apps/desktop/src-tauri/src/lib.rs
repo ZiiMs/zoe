@@ -80,30 +80,46 @@ pub fn run() {
 
 #[tauri::command]
 fn capture_item_text() -> Result<String, String> {
+    ensure_poe_focused()?;
     capture_item_text_from_clipboard()
 }
 
 #[tauri::command]
 fn is_poe_focused() -> bool {
     active_process_name()
-        .map(|name| {
-            let normalized = name.to_ascii_lowercase();
-            matches!(
-                normalized.as_str(),
-                "pathofexile.exe"
-                    | "pathofexilesteam.exe"
-                    | "pathofexile_x64.exe"
-                    | "pathofexile_x64steam.exe"
-                    | "pathofexile2.exe"
-                    | "pathofexile2steam.exe"
-            ) || normalized.contains("pathofexile")
-        })
+        .map(|name| name.is_some_and(|process_name| is_poe_process(&process_name)))
         .unwrap_or(false)
 }
 
 #[tauri::command]
 fn cursor_position(window: tauri::Window) -> Option<CursorPosition> {
     cursor_position_in_window(&window)
+}
+
+fn ensure_poe_focused() -> Result<(), String> {
+    match active_process_name()? {
+        Some(process_name) if is_poe_process(&process_name) => Ok(()),
+        Some(process_name) => Err(format!(
+            "Path of Exile 2 is not focused. Focus the game before capturing an item. Active app: {process_name}."
+        )),
+        None => Err(
+            "Cannot verify the active window. Check Windows focus permissions or run Zoe with matching privileges to Path of Exile 2."
+                .to_string(),
+        ),
+    }
+}
+
+fn is_poe_process(process_name: &str) -> bool {
+    let normalized = process_name.to_ascii_lowercase();
+    matches!(
+        normalized.as_str(),
+        "pathofexile.exe"
+            | "pathofexilesteam.exe"
+            | "pathofexile_x64.exe"
+            | "pathofexile_x64steam.exe"
+            | "pathofexile2.exe"
+            | "pathofexile2steam.exe"
+    ) || normalized.contains("pathofexile")
 }
 
 #[cfg(target_os = "windows")]
@@ -144,14 +160,17 @@ fn capture_item_text_from_clipboard() -> Result<String, String> {
     }
 
     if item_text.trim().is_empty() {
-        Err("No item text was copied. Hover an item in Path of Exile 2 and press Ctrl+D.".to_string())
+        Err(
+            "No item text was copied. Hover an item in Path of Exile 2 and press Ctrl+D. If PoE2 runs as administrator, run Zoe as administrator too."
+                .to_string(),
+        )
     } else {
         Ok(item_text)
     }
 }
 
 #[cfg(target_os = "windows")]
-fn active_process_name() -> Option<String> {
+fn active_process_name() -> Result<Option<String>, String> {
     use windows::core::PWSTR;
     use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
     use windows::Win32::System::Threading::{
@@ -162,16 +181,17 @@ fn active_process_name() -> Option<String> {
     unsafe {
         let foreground_window = GetForegroundWindow();
         if foreground_window.0.is_null() {
-            return None;
+            return Ok(None);
         }
 
         let mut process_id = 0;
         GetWindowThreadProcessId(foreground_window, Some(&mut process_id));
         if process_id == 0 {
-            return None;
+            return Ok(None);
         }
 
-        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id).ok()?;
+        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)
+            .map_err(|error| format!("Failed to inspect the focused process: {error}"))?;
         let mut buffer = [0u16; MAX_PATH as usize];
         let mut size = buffer.len() as u32;
         let result = QueryFullProcessImageNameW(
@@ -182,18 +202,22 @@ fn active_process_name() -> Option<String> {
         );
         let _ = CloseHandle(process);
 
-        if result.is_err() || size == 0 {
-            return None;
+        if let Err(error) = result {
+            return Err(format!("Failed to read the focused process name: {error}"));
+        }
+
+        if size == 0 {
+            return Ok(None);
         }
 
         let path = String::from_utf16_lossy(&buffer[..size as usize]);
-        path.rsplit(['\\', '/']).next().map(str::to_string)
+        Ok(path.rsplit(['\\', '/']).next().map(str::to_string))
     }
 }
 
 #[cfg(not(target_os = "windows"))]
-fn active_process_name() -> Option<String> {
-    None
+fn active_process_name() -> Result<Option<String>, String> {
+    Err("Path of Exile focus detection is currently implemented for Windows only.".to_string())
 }
 
 #[cfg(target_os = "windows")]
@@ -232,7 +256,15 @@ fn run_powershell(command: &str, stdin_text: Option<&str>) -> Result<String, Str
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            Err(format!(
+                "PowerShell command failed with status {}.",
+                output.status
+            ))
+        } else {
+            Err(stderr)
+        }
     }
 }
 

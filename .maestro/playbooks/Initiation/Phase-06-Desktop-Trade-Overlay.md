@@ -11,10 +11,12 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Completed audit notes: `apps/desktop/src/main.tsx` already has Tauri runtime guards for renderer-only development, global shortcuts for `CommandOrControl+D` and `Shift+Space`, Escape close handling, click-through sync, cursor-based quick panel positioning, API metadata loading, filter controls, debug output, and price-check calls. `apps/desktop/src-tauri/src/lib.rs` exposes `capture_item_text`, `cursor_position`, and `is_poe_focused`; Windows clipboard capture is PowerShell-based, focus gating checks Path of Exile process names, and non-Windows capture returns a clear unsupported message while cursor positioning returns `None`. `apps/desktop/src/styles.css` contains the dense quick-panel and settings-panel styles. `apps/desktop/package.json` keeps `dev:renderer` as Vite-only, and `apps/desktop/vite.config.ts` serves that fallback on `127.0.0.1:5173`.
   - Search completed with `rg "capture_item_text|global-shortcut|is_poe_focused|cursor_position|priceCheck" apps/desktop`; matches confirmed the command names, Tauri global shortcut plugin dependency and capabilities, renderer shortcut registration, focus check, cursor command, and API client `priceCheck` call.
 
-- [ ] Harden Tauri command behavior:
+- [x] Harden Tauri command behavior:
   - Ensure item text capture fails with a clear message when clipboard or focus access is unavailable.
   - Ensure PoE focus gating works without blocking renderer-only development.
   - Ensure cursor positioning and window click-through behavior fail gracefully if an OS API is unavailable.
+  - Completed hardening notes: `capture_item_text` now verifies the focused process before clipboard capture and returns explicit messages when PoE2 is not focused or the active window cannot be inspected. Clipboard-empty errors now mention the administrator-privilege mismatch case. The renderer keeps the non-Tauri `dev:desktop:renderer` path focused by default, while Tauri hotkey focus failures are logged to the debug panel. Cursor positioning, overlay focus, and click-through sync now fail gracefully with debug messages instead of silent drops or crashes.
+  - Validation: `cargo check` in `apps/desktop/src-tauri`, `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run test:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
 - [ ] Improve hotkey and overlay state handling:
   - Keep `CommandOrControl+D` for quick price check and `Shift+Space` for settings or interactive mode unless the existing code already defines a different convention.
