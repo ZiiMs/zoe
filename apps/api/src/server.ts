@@ -16,6 +16,7 @@ import { fetchTradeLeagues, fetchTradeStats, priceCheckTradeItem } from "./trade
 
 interface CreateServerOptions {
   fetcher?: typeof fetch;
+  poeNinjaBaseUrl?: string | undefined;
 }
 
 const allowedCorsOrigins = [
@@ -27,7 +28,7 @@ const allowedCorsOrigins = [
   "tauri://localhost"
 ] as const;
 
-export function createServer({ fetcher = fetch }: CreateServerOptions = {}) {
+export function createServer({ fetcher = fetch, poeNinjaBaseUrl }: CreateServerOptions = {}) {
   const server = Fastify({
     logger: true
   });
@@ -52,19 +53,24 @@ export function createServer({ fetcher = fetch }: CreateServerOptions = {}) {
 
   server.get<{ Querystring: Record<string, string | string[] | undefined> }>(
     "/builds",
-    async (request) => fetchPoeNinjaBuilds(parseBuildSearchParams(request.query), fetcher)
+    async (request) =>
+      fetchPoeNinjaBuilds(parseBuildSearchParams(request.query), fetcher, {
+        baseUrl: poeNinjaBaseUrl
+      })
   );
 
   server.get("/poe-ninja/build-index", async () => ({
-    index: await fetchPoeNinjaBuildIndex(fetcher)
+    index: await fetchPoeNinjaBuildIndex(fetcher, { baseUrl: poeNinjaBaseUrl })
   }));
 
   server.get("/poe-ninja/leagues", async () => ({
-    leagues: await fetchPoeNinjaLeagues(fetcher)
+    leagues: await fetchPoeNinjaLeagues(fetcher, { baseUrl: poeNinjaBaseUrl })
   }));
 
   server.get<{ Params: { id: string } }>("/builds/:id", async (request, reply) => {
-    const detail = await fetchPoeNinjaBuildDetail(request.params.id, fetcher);
+    const detail = await fetchPoeNinjaBuildDetail(request.params.id, fetcher, {
+      baseUrl: poeNinjaBaseUrl
+    });
 
     if (!detail) {
       return reply.code(404).send({ error: "Build not found" });

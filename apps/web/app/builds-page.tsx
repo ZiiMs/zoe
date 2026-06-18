@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createZoeApiClient } from "@zoe/api-client";
+import { readWebEnv } from "@zoe/config";
 import type { BuildFilterGroup, BuildSearchParams, BuildSearchResponse, BuildSnapshot } from "@zoe/domain";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, cn } from "@zoe/ui";
 import {
@@ -21,7 +22,8 @@ import {
 } from "lucide-react";
 
 const api = createZoeApiClient({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
+  baseUrl: readWebEnv({ NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL })
+    .NEXT_PUBLIC_API_BASE_URL
 });
 
 const filterIcons = {

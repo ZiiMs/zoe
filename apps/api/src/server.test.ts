@@ -197,6 +197,36 @@ describe("api server", () => {
     ).toBe("Deadeye");
   });
 
+  it("uses the configured poe.ninja base URL for upstream metadata", async () => {
+    const requestedUrls: string[] = [];
+    const server = createServer({
+      poeNinjaBaseUrl: "https://mirror.example.test/poe2/api/data",
+      fetcher: async (input) => {
+        requestedUrls.push(String(input));
+        return new Response(
+          JSON.stringify({
+            leagueBuilds: [
+              {
+                leagueName: "Runes of Aldur",
+                leagueUrl: "runesofaldur",
+                total: 10,
+                status: 0,
+                statistics: []
+              }
+            ]
+          })
+        );
+      }
+    });
+
+    const response = await server.inject({ method: "GET", url: "/poe-ninja/build-index" });
+
+    expect(response.statusCode).toBe(200);
+    expect(requestedUrls).toEqual([
+      "https://mirror.example.test/poe2/api/data/build-index-state"
+    ]);
+  });
+
   it("falls back to fixture build index when poe.ninja returns malformed JSON", async () => {
     const server = createServer({
       fetcher: async () => new Response("{not-json")

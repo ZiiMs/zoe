@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import { createZoeApiClient } from "@zoe/api-client";
+import { readWebEnv } from "@zoe/config";
 import type { BuildSearchResponse } from "@zoe/domain";
 import { BuildsPage } from "./builds-page";
 
+const env = readWebEnv(process.env);
 const api = createZoeApiClient({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
+  baseUrl: env.NEXT_PUBLIC_API_BASE_URL
 });
 
 export default async function HomePage({

@@ -2,12 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { createZoeApiClient } from "@zoe/api-client";
+import { readWebEnv } from "@zoe/config";
 import type { BuildDetail, BuildDetailItem, BuildDetailSkillGroup, BuildPassiveTree } from "@zoe/domain";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, buttonVariants, cn } from "@zoe/ui";
 import { ArrowLeft, Gem, Shield, Sparkles, Sword } from "lucide-react";
 
+const env = readWebEnv(process.env);
 const api = createZoeApiClient({
-  baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
+  baseUrl: env.NEXT_PUBLIC_API_BASE_URL
 });
 
 const equipmentSlots = [

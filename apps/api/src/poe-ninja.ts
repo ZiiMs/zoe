@@ -20,9 +20,7 @@ import type {
 } from "@zoe/domain";
 import { fixtureBuilds, fixturePoeNinjaBuildIndex } from "./fixtures";
 
-const indexStateUrl = "https://poe.ninja/poe2/api/data/index-state";
-const buildIndexStateUrl = "https://poe.ninja/poe2/api/data/build-index-state";
-const buildsBaseUrl = "https://poe.ninja/poe2/api/builds";
+const defaultPoeNinjaBaseUrl = "https://poe.ninja/poe2/api/data";
 const passiveTreeExportUrl = "https://raw.githubusercontent.com/grindinggear/poe2-skilltree-export/main/data.json";
 const defaultLeagueUrl = "runesofaldur";
 const optionLimit = 300;
@@ -216,9 +214,18 @@ interface PoeNinjaDefensiveStatsPayload {
 
 const dictionaryCache = new Map<string, SearchResultDictionary>();
 
-export async function fetchPoeNinjaBuildIndex(fetcher: typeof fetch): Promise<PoeNinjaBuildIndex> {
+export interface PoeNinjaOptions {
+  baseUrl?: string | undefined;
+}
+
+export async function fetchPoeNinjaBuildIndex(
+  fetcher: typeof fetch,
+  options: PoeNinjaOptions = {}
+): Promise<PoeNinjaBuildIndex> {
+  const urls = createPoeNinjaUrls(options);
+
   try {
-    const response = await fetcher(buildIndexStateUrl);
+    const response = await fetcher(urls.buildIndexStateUrl);
 
     if (!response.ok) {
       throw new Error(`poe.ninja returned ${response.status}`);
@@ -249,9 +256,15 @@ export async function fetchPoeNinjaBuildIndex(fetcher: typeof fetch): Promise<Po
   }
 }
 
-export async function fetchPoeNinjaLeagues(fetcher: typeof fetch): Promise<PoeNinjaLeagueOption[]> {
+export async function fetchPoeNinjaLeagues(
+  fetcher: typeof fetch,
+  options: PoeNinjaOptions = {}
+): Promise<PoeNinjaLeagueOption[]> {
   try {
-    const [indexState, buildIndex] = await Promise.all([fetchIndexState(fetcher), fetchPoeNinjaBuildIndex(fetcher)]);
+    const [indexState, buildIndex] = await Promise.all([
+      fetchIndexState(fetcher, options),
+      fetchPoeNinjaBuildIndex(fetcher, options)
+    ]);
     const leagueBuildsByUrl = new Map(buildIndex.leagueBuilds.map((league) => [league.leagueUrl, league]));
     const snapshotsByUrl = new Map((indexState.snapshotVersions ?? []).map((snapshot) => [snapshot.url, snapshot]));
     const current = normalizeIndexStateLeagues(indexState.buildLeagues ?? [], leagueBuildsByUrl, snapshotsByUrl);
@@ -266,16 +279,17 @@ export async function fetchPoeNinjaLeagues(fetcher: typeof fetch): Promise<PoeNi
 
 export async function fetchPoeNinjaBuilds(
   params: BuildSearchParams,
-  fetcher: typeof fetch
+  fetcher: typeof fetch,
+  options: PoeNinjaOptions = {}
 ): Promise<BuildSearchResponse> {
   const sort = normalizeSort(params.sort);
   const order = normalizeOrder(params.order);
-  const leagues = await fetchPoeNinjaLeagues(fetcher);
+  const leagues = await fetchPoeNinjaLeagues(fetcher, options);
   const league = selectLeague(leagues, params.league);
   const fetchedAt = new Date().toISOString();
 
   try {
-    const searchUrl = createSearchUrl(league, params, sort, order);
+    const searchUrl = createSearchUrl(league, params, sort, order, options);
     const response = await fetcher(searchUrl);
 
     if (!response.ok) {
@@ -283,7 +297,7 @@ export async function fetchPoeNinjaBuilds(
     }
 
     const decoded = decodeSearchResult(new Uint8Array(await response.arrayBuffer()));
-    const dictionaries = await fetchDictionaries(decoded.dictionaries ?? [], fetcher);
+    const dictionaries = await fetchDictionaries(decoded.dictionaries ?? [], fetcher, options);
     const builds = normalizeBuildRows(decoded, dictionaries, league, fetchedAt, order);
     const filters = normalizeFilters(decoded, dictionaries, params);
 
@@ -304,7 +318,8 @@ export async function fetchPoeNinjaBuilds(
 
 export async function fetchPoeNinjaBuildDetail(
   id: string,
-  fetcher: typeof fetch
+  fetcher: typeof fetch,
+  options: PoeNinjaOptions = {}
 ): Promise<BuildDetail | undefined> {
   const parsed = parsePoeNinjaBuildId(id);
 
@@ -313,7 +328,8 @@ export async function fetchPoeNinjaBuildDetail(
     return fixture ? fixtureBuildDetail(fixture) : undefined;
   }
 
-  const leagues = await fetchPoeNinjaLeagues(fetcher);
+  const urls = createPoeNinjaUrls(options);
+  const leagues = await fetchPoeNinjaLeagues(fetcher, options);
   const league = selectLeague(leagues, parsed.league);
 
   try {
@@ -323,7 +339,7 @@ export async function fetchPoeNinjaBuildDetail(
       overview: league.snapshotName
     });
     const response = await fetcher(
-      `${buildsBaseUrl}/${encodeURIComponent(league.version)}/character?${query.toString()}`
+      `${urls.buildsBaseUrl}/${encodeURIComponent(league.version)}/character?${query.toString()}`
     );
 
     if (!response.ok) {
@@ -365,8 +381,20 @@ function getProtoRoot() {
   return protoRoot;
 }
 
-async function fetchIndexState(fetcher: typeof fetch) {
-  const response = await fetcher(indexStateUrl);
+function createPoeNinjaUrls(options: PoeNinjaOptions) {
+  const dataBaseUrl = (options.baseUrl ?? defaultPoeNinjaBaseUrl).replace(/\/+$/, "");
+  const apiBaseUrl = dataBaseUrl.endsWith("/data") ? dataBaseUrl.slice(0, -"/data".length) : dataBaseUrl;
+
+  return {
+    indexStateUrl: `${dataBaseUrl}/index-state`,
+    buildIndexStateUrl: `${dataBaseUrl}/build-index-state`,
+    buildsBaseUrl: `${apiBaseUrl}/builds`
+  };
+}
+
+async function fetchIndexState(fetcher: typeof fetch, options: PoeNinjaOptions) {
+  const urls = createPoeNinjaUrls(options);
+  const response = await fetcher(urls.indexStateUrl);
 
   if (!response.ok) {
     throw new Error(`poe.ninja returned ${response.status}`);
@@ -418,8 +446,10 @@ function createSearchUrl(
   league: PoeNinjaLeagueOption,
   params: BuildSearchParams,
   sort: BuildSortField,
-  order: SortOrder
+  order: SortOrder,
+  options: PoeNinjaOptions = {}
 ) {
+  const urls = createPoeNinjaUrls(options);
   const query = new URLSearchParams({
     overview: league.snapshotName,
     sort
@@ -436,10 +466,15 @@ function createSearchUrl(
   addQueryValues(query, "allskills", params.supports);
   addQueryValues(query, "items", params.gear);
 
-  return `${buildsBaseUrl}/${encodeURIComponent(league.version)}/search?${query.toString()}`;
+  return `${urls.buildsBaseUrl}/${encodeURIComponent(league.version)}/search?${query.toString()}`;
 }
 
-async function fetchDictionaries(references: SearchResultDictionaryReference[], fetcher: typeof fetch) {
+async function fetchDictionaries(
+  references: SearchResultDictionaryReference[],
+  fetcher: typeof fetch,
+  options: PoeNinjaOptions
+) {
+  const urls = createPoeNinjaUrls(options);
   const dictionaries = new Map<string, SearchResultDictionary>();
 
   await Promise.all(
@@ -454,7 +489,7 @@ async function fetchDictionaries(references: SearchResultDictionaryReference[], 
         return;
       }
 
-      const response = await fetcher(`${buildsBaseUrl}/dictionary/${encodeURIComponent(reference.hash)}`);
+      const response = await fetcher(`${urls.buildsBaseUrl}/dictionary/${encodeURIComponent(reference.hash)}`);
       if (!response.ok) {
         throw new Error(`poe.ninja dictionary returned ${response.status}`);
       }

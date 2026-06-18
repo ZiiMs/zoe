@@ -60,10 +60,18 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - Added `packages/api-client/src/index.test.ts` coverage for all public client methods and paths, build query string serialization, price-check POST body serialization, API error formatting, and the helpful unreachable-API message.
     - Verification passed: `bun run test --filter=@zoe/api-client`, `bun run typecheck --filter=@zoe/api-client`, `bun run lint --filter=@zoe/api-client`, and `bun run build --filter=@zoe/api-client`.
 
-- [ ] Add environment validation where it reduces runtime ambiguity:
+- [x] Add environment validation where it reduces runtime ambiguity:
   - Reuse `packages/config` patterns for API port, web API base URL, desktop API base URL, and any optional upstream settings.
   - Do not require secrets for the fixture-backed prototype path.
   - Document required environment variables in existing project docs only if the implementation introduces a new variable.
+  - Notes:
+    - Added shared `readWebEnv()` and `readDesktopEnv()` helpers in `packages/config/src/index.ts` so `NEXT_PUBLIC_API_BASE_URL` and `VITE_ZOE_API_BASE_URL` are validated as explicit HTTP(S) URLs with the fixture-friendly `http://localhost:4000` default.
+    - Tightened `POE_NINJA_BASE_URL` to an HTTP(S) URL and updated its default to the active PoE2 data endpoint, `https://poe.ninja/poe2/api/data`.
+    - Wired `POE_NINJA_BASE_URL` through `apps/api/src/index.ts`, `apps/api/src/server.ts`, and `apps/api/src/poe-ninja.ts` so build metadata/search/detail requests no longer rely on hardcoded poe.ninja API URLs.
+    - Replaced inline web and desktop API base URL defaults with the shared config helpers in `apps/web/app/page.tsx`, `apps/web/app/builds-page.tsx`, `apps/web/app/builds/[id]/page.tsx`, and `apps/desktop/src/main.tsx`.
+    - Added config tests for defaults, API port coercion/rejection, web/desktop URL validation, and API coverage for custom poe.ninja base URL routing.
+    - No top-level docs were changed because no new environment variable was introduced.
+    - Verification passed: `bun run test --filter=@zoe/config`, `bun run typecheck --filter=@zoe/config`, `bun run lint --filter=@zoe/config`, `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, `bun run build:api`, `bun run typecheck --filter=@zoe/web`, and `bun run typecheck --filter=@zoe/desktop`.
 
 - [ ] Run API validation and fix failures:
   - `bun run test:api`

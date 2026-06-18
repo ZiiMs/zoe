@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { isRegistered, register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
 import { createZoeApiClient } from "@zoe/api-client";
+import { readDesktopEnv } from "@zoe/config";
 import {
   attachTradeStatIds,
   buildTradePriceCheckRequest,
@@ -18,7 +19,9 @@ import {
 import { Check, ExternalLink, EyeOff, List, Search, X } from "lucide-react";
 import "./styles.css";
 
-const defaultApiBaseUrl = import.meta.env.VITE_ZOE_API_BASE_URL ?? "http://localhost:4000";
+const defaultApiBaseUrl = readDesktopEnv({
+  VITE_ZOE_API_BASE_URL: import.meta.env.VITE_ZOE_API_BASE_URL
+}).VITE_ZOE_API_BASE_URL;
 const priceCheckShortcut = "CommandOrControl+D";
 const settingsShortcut = "Shift+Space";
 const quickTradeListingLimit = 20;

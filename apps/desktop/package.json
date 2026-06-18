@@ -16,6 +16,7 @@
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-global-shortcut": "^2.3.0",
     "@zoe/api-client": "workspace:*",
+    "@zoe/config": "workspace:*",
     "@zoe/domain": "workspace:*",
     "lucide-react": "^1.17.0",
     "react": "^19.1.0",
