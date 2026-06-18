@@ -68,7 +68,9 @@ describe("api server", () => {
         ehpLabel: expect.any(String)
       }
     });
-    expect(payload.filters.find((filter) => filter.id === "class")?.options.length).toBeGreaterThan(0);
+    expect(payload.filters.find((filter) => filter.id === "class")?.options.length).toBeGreaterThan(
+      0
+    );
   });
 
   it("parses build search parameters without throwing", async () => {
@@ -203,7 +205,9 @@ describe("api server", () => {
 
     expect(response.statusCode).toBe(200);
     const payload = response.json<{
-      index: { leagueBuilds: Array<{ leagueUrl: string; statistics: Array<{ className: string }> }> };
+      index: {
+        leagueBuilds: Array<{ leagueUrl: string; statistics: Array<{ className: string }> }>;
+      };
     }>();
     expect(payload.index.leagueBuilds[0]).toMatchObject({
       leagueUrl: "runesofaldur",
@@ -414,6 +418,35 @@ describe("api server", () => {
     expect(first.statusCode).toBe(200);
     expect(second.statusCode).toBe(200);
     expect(statsCalls).toBe(1);
+  });
+
+  it("returns cached trade leagues", async () => {
+    __tradeInternals.resetCaches();
+    let leagueCalls = 0;
+    const server = createServer({
+      fetcher: async (input) => {
+        if (String(input).includes("/api/trade2/data/leagues")) {
+          leagueCalls += 1;
+          return new Response(
+            JSON.stringify({
+              result: [{ id: "Standard", text: "Standard", realm: "poe2" }]
+            })
+          );
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+
+    const first = await server.inject({ method: "GET", url: "/trade/leagues" });
+    const second = await server.inject({ method: "GET", url: "/trade/leagues" });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json()).toEqual({
+      leagues: [{ id: "Standard", text: "Standard", realm: "poe2" }]
+    });
+    expect(leagueCalls).toBe(1);
   });
 
   it("formats trade stats upstream failures", async () => {
@@ -761,6 +794,169 @@ Item Level: 80
     expect(fetchUrls[1]).toContain(resultIds.slice(10, 20).join(","));
   });
 
+  it("returns empty price-check listings without fetching when trade search has no results", async () => {
+    __tradeInternals.resetCaches();
+    let fetchCalls = 0;
+    const server = createServer({
+      fetcher: async (input) => {
+        const url = String(input);
+
+        if (url.includes("/api/trade2/data/stats")) {
+          return new Response(JSON.stringify({ result: [] }));
+        }
+
+        if (url.includes("/api/trade2/search/Standard")) {
+          return new Response(JSON.stringify({ id: "empty-query", result: [], total: 0 }));
+        }
+
+        if (url.includes("/api/trade2/fetch/")) {
+          fetchCalls += 1;
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: {
+        league: "Standard",
+        item: {
+          rawText: "item",
+          rarity: "Rare",
+          baseType: "Ruby Ring",
+          requirements: [],
+          sockets: [],
+          modifiers: [],
+          statCandidates: [],
+          pseudoSuggestions: [],
+          parseWarnings: []
+        },
+        filters: []
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      result: {
+        queryId: "empty-query",
+        total: 0,
+        listings: [],
+        source: "official"
+      }
+    });
+    expect(fetchCalls).toBe(0);
+  });
+
+  it("drops unmapped trade filters before sending official trade search", async () => {
+    __tradeInternals.resetCaches();
+    const searchBodies: unknown[] = [];
+    const server = createServer({
+      fetcher: async (input, init) => {
+        const url = String(input);
+
+        if (url.includes("/api/trade2/data/stats")) {
+          return new Response(JSON.stringify({ result: [] }));
+        }
+
+        if (url.includes("/api/trade2/search/Standard")) {
+          searchBodies.push(JSON.parse(String(init?.body)));
+          return new Response(
+            JSON.stringify({ id: "query-without-filters", result: [], total: 0 })
+          );
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: {
+        league: "Standard",
+        item: {
+          rawText: "item",
+          rarity: "Rare",
+          baseType: "Ruby Ring",
+          requirements: [],
+          sockets: [],
+          modifiers: [],
+          statCandidates: [],
+          pseudoSuggestions: [],
+          parseWarnings: []
+        },
+        filters: [
+          {
+            id: "unmapped",
+            label: "Unmapped modifier",
+            normalizedText: "unmapped modifier",
+            source: "explicit",
+            min: 10
+          }
+        ]
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ result: { filters: unknown[] } }>().result.filters).toEqual([]);
+    expect(searchBodies[0]).toMatchObject({
+      query: {
+        stats: [{ type: "and", filters: [] }]
+      }
+    });
+  });
+
+  it("allows offline listings when onlineOnly is false", async () => {
+    __tradeInternals.resetCaches();
+    const searchBodies: unknown[] = [];
+    const server = createServer({
+      fetcher: async (input, init) => {
+        const url = String(input);
+
+        if (url.includes("/api/trade2/data/stats")) {
+          return new Response(JSON.stringify({ result: [] }));
+        }
+
+        if (url.includes("/api/trade2/search/Standard")) {
+          searchBodies.push(JSON.parse(String(init?.body)));
+          return new Response(JSON.stringify({ id: "offline-query", result: [], total: 0 }));
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: {
+        league: "Standard",
+        item: {
+          rawText: "item",
+          rarity: "Rare",
+          baseType: "Ruby Ring",
+          requirements: [],
+          sockets: [],
+          modifiers: [],
+          statCandidates: [],
+          pseudoSuggestions: [],
+          parseWarnings: []
+        },
+        filters: [],
+        onlineOnly: false
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(searchBodies[0]).toMatchObject({
+      query: {
+        status: { option: "any" }
+      }
+    });
+  });
+
   it("returns an error when trade search fails", async () => {
     __tradeInternals.resetCaches();
     const server = createServer({
@@ -793,6 +989,54 @@ Item Level: 80
 
     expect(response.statusCode).toBe(429);
     expect(response.json<{ error: string }>().error).toContain("Trade search failed");
+  });
+
+  it("returns an error when trade listing fetch fails", async () => {
+    __tradeInternals.resetCaches();
+    const server = createServer({
+      fetcher: async (input) => {
+        const url = String(input);
+
+        if (url.includes("/api/trade2/data/stats")) {
+          return new Response(JSON.stringify({ result: [] }));
+        }
+
+        if (url.includes("/api/trade2/search/Standard")) {
+          return new Response(JSON.stringify({ id: "query-3", result: ["listing-1"], total: 1 }));
+        }
+
+        if (url.includes("/api/trade2/fetch/listing-1")) {
+          return new Response("fetch unavailable", { status: 502, statusText: "Bad Gateway" });
+        }
+
+        return new Response("unexpected URL", { status: 404 });
+      }
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: {
+        league: "Standard",
+        item: {
+          rawText: "item",
+          rarity: "Rare",
+          baseType: "Ruby Ring",
+          requirements: [],
+          sockets: [],
+          modifiers: [],
+          statCandidates: [],
+          pseudoSuggestions: [],
+          parseWarnings: []
+        },
+        filters: []
+      }
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      error: "Trade fetch failed: 502 Bad Gateway fetch unavailable"
+    });
   });
 
   it("truncates large upstream trade error bodies", async () => {

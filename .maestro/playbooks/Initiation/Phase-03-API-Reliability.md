@@ -41,10 +41,15 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - Existing tests continue to cover normalized build index data, league metadata normalization, build query parameter parsing, fixture detail fallback, summaries, and passive heatmaps.
     - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
-- [ ] Harden official trade routes:
+- [x] Harden official trade routes:
   - Confirm `/trade/stats`, `/trade/leagues`, and `/trade/price-check` use cache TTLs, rate limiting, stat ID resolution, batched fetches, and useful error propagation.
   - Add or adjust tests for trade stats caching, league caching, search failure, fetch failure, zero listings, batched result fetching, unmapped filters, and online-only behavior.
   - Keep official network calls mocked in tests.
+  - Notes:
+    - Confirmed the existing official trade implementation in `apps/api/src/trade.ts` keeps stats and leagues behind TTL caches, rate-limits price checks, resolves requested filters to official stat IDs, fetches listings in batches of 10, and propagates upstream status codes through standardized `{ error: string }` API responses.
+    - Extended `apps/api/src/server.test.ts` with mocked-network coverage for trade league caching, zero-result searches that skip listing fetches, unmapped filters being dropped before official search, `onlineOnly: false` sending `status.option: "any"`, and listing fetch failures preserving useful status/body context.
+    - Existing tests continue to cover trade stats caching, search failures, batched result fetching, stat ID resolution, successful price-check normalization, quiet successful hot paths, and truncated upstream error bodies.
+    - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
 - [ ] Improve the typed API client:
   - Ensure client methods cover health, builds, build detail, poe.ninja metadata, summaries, heatmaps, trade metadata, and price check.
