@@ -40,8 +40,9 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - If persistence is not ready by the end of this phase, leave API behavior unchanged and report the exact remaining boundary.
   - Completion note: added optional `@zoe/db` read helpers for build snapshots, build details, summaries, and heatmap aggregates, then wired `apps/api` to prefer those rows only when a database query client is explicitly provided. Startup keeps persisted reads disabled by default behind `ZOE_API_PERSISTED_READS=1`, so missing Postgres still falls back to live poe.ninja or fixtures. Updated web build source labels for the new `database` source. Added mocked coverage for persisted API reads, fallback-on-db-failure, db read helpers, and env opt-in behavior. Verified `bun run test:api`, `bun run --filter @zoe/db test`, `bun run --filter @zoe/config test`, `bun run --filter @zoe/web test`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/config typecheck`, `bun run --filter @zoe/api typecheck`, `bun run --filter @zoe/web typecheck`, and `bun run build:api`.
 
-- [ ] Run worker and persistence validation and fix failures:
+- [x] Run worker and persistence validation and fix failures:
   - `bun run test:worker`
   - `bun run typecheck`
   - `bun run build:worker`
   - Optionally run `docker compose up -d postgres` followed by the worker scripts if local Docker is available; skip gracefully if Docker is unavailable.
+  - Completion note: required validation passed with `bun run test:worker` (8 tests across 2 files), `bun run typecheck` (9 packages), and `bun run build:worker` (worker plus cached domain/db builds). Optional Docker-backed Postgres smoke validation was skipped gracefully because `docker compose up -d postgres` could not connect to the Docker Desktop Linux engine (`//./pipe/dockerDesktopLinuxEngine` was unavailable).
