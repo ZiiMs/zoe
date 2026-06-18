@@ -12,6 +12,7 @@ import {
   type ParsedTradeItem,
   type TradeLeague,
   type TradeListing,
+  type TradePriceCheckRequest,
   type TradePriceCheckResult,
   type TradeStatCandidate,
   type TradeStatGroup
@@ -32,6 +33,17 @@ type ApiStatus = "checking" | "ready" | "offline";
 type PanelPosition = { x: number; y: number };
 type CursorPosition = { x: number; y: number };
 type DebugLine = { id: number; message: string };
+type DebugDetails = {
+  apiBaseUrl: string;
+  apiStatus: ApiStatus;
+  statGroupCount: number;
+  leagueCount: number;
+  selectedLeague: string;
+  parseWarnings: string[];
+  unmappedCandidates: TradeStatCandidate[];
+  lastRequest?: TradePriceCheckRequest | undefined;
+  result?: TradePriceCheckResult | undefined;
+};
 
 const quickPanelSize = { width: 340, height: 690 };
 const panelMargin = 18;
@@ -56,6 +68,7 @@ function OverlayApp() {
   const [item, setItem] = useState<ParsedTradeItem | undefined>();
   const [stats, setStats] = useState<TradeStatGroup[]>([]);
   const [candidates, setCandidates] = useState<TradeStatCandidate[]>([]);
+  const [lastRequest, setLastRequest] = useState<TradePriceCheckRequest | undefined>();
   const [result, setResult] = useState<TradePriceCheckResult | undefined>();
   const [notice, setNotice] = useState("Hover an item in PoE2 and press Ctrl+D.");
   const [isLoading, setIsLoading] = useState(false);
@@ -271,6 +284,7 @@ function OverlayApp() {
     setIsLoading(true);
     setNotice("Reading item text...");
     setResult(undefined);
+    setLastRequest(undefined);
 
     try {
       const rawText = await invoke<string>("capture_item_text");
@@ -346,6 +360,7 @@ function OverlayApp() {
         nextCandidates,
         quickTradeListingLimit
       );
+      setLastRequest(request);
       addDebug(
         `search league=${request.league}, filters=${request.filters.length}, limit=${request.limit ?? 10}, item=${request.item.baseType ?? "unknown"}`
       );
@@ -518,6 +533,8 @@ function OverlayApp() {
               leagues={leagues}
               notice={notice}
               result={result}
+              stats={stats}
+              lastRequest={lastRequest}
               onApiBaseUrlChange={setApiBaseUrl}
               onCapture={() => void captureAndPriceCheck()}
               onChange={updateCandidate}
@@ -738,6 +755,8 @@ function SettingsPanel({
   leagues,
   notice,
   result,
+  stats,
+  lastRequest,
   onApiBaseUrlChange,
   onCapture,
   onChange,
@@ -758,6 +777,8 @@ function SettingsPanel({
   leagues: TradeLeague[];
   notice: string;
   result?: TradePriceCheckResult | undefined;
+  stats: TradeStatGroup[];
+  lastRequest?: TradePriceCheckRequest | undefined;
   onApiBaseUrlChange: (value: string) => void;
   onCapture: () => void;
   onChange: (id: string, patch: Partial<TradeStatCandidate>) => void;
@@ -766,6 +787,18 @@ function SettingsPanel({
   onPassive: () => void;
   onStartDrag: (event: React.PointerEvent<HTMLElement>) => void;
 }) {
+  const debugDetails: DebugDetails = {
+    apiBaseUrl,
+    apiStatus,
+    statGroupCount: stats.length,
+    leagueCount: leagues.length,
+    selectedLeague: league,
+    parseWarnings: item?.parseWarnings ?? [],
+    unmappedCandidates: candidates.filter((candidate) => !candidate.tradeStatId),
+    lastRequest,
+    result
+  };
+
   return (
     <>
       <header className="panel-header draggable-header" onPointerDown={onStartDrag}>
@@ -873,7 +906,7 @@ function SettingsPanel({
             <div className="empty-state">No listings returned for this filter set.</div>
           ) : null}
 
-          <DebugPanel lines={debugLines} />
+          <DebugPanel details={debugDetails} lines={debugLines} />
         </section>
       </div>
 
@@ -886,8 +919,16 @@ function SettingsPanel({
   );
 }
 
-function DebugPanel({ compact = false, lines }: { compact?: boolean; lines: DebugLine[] }) {
-  if (!lines.length) {
+function DebugPanel({
+  compact = false,
+  details,
+  lines
+}: {
+  compact?: boolean;
+  details?: DebugDetails | undefined;
+  lines: DebugLine[];
+}) {
+  if (!lines.length && !details) {
     return null;
   }
 
@@ -895,11 +936,83 @@ function DebugPanel({ compact = false, lines }: { compact?: boolean; lines: Debu
     <details className={compact ? "debug-panel compact-debug" : "debug-panel"}>
       <summary>Debug</summary>
       <div>
+        {details ? <DebugDetailsView details={details} /> : null}
         {lines.map((line) => (
           <p key={line.id}>{line.message}</p>
         ))}
       </div>
     </details>
+  );
+}
+
+function DebugDetailsView({ details }: { details: DebugDetails }) {
+  const request = details.lastRequest;
+  const result = details.result;
+  const enabledFilters = request?.filters.filter((filter) => filter.tradeStatId).length ?? 0;
+
+  return (
+    <section className="debug-details" aria-label="Trade debug details">
+      <div className="debug-grid">
+        <DebugDatum label="API" value={details.apiStatus} />
+        <DebugDatum label="Base URL" value={details.apiBaseUrl} />
+        <DebugDatum label="League" value={details.selectedLeague || "none"} />
+        <DebugDatum
+          label="Metadata"
+          value={`${details.statGroupCount} stat groups, ${details.leagueCount} leagues`}
+        />
+        <DebugDatum
+          label="Parse warnings"
+          value={details.parseWarnings.length ? details.parseWarnings.join(" | ") : "none"}
+        />
+        <DebugDatum
+          label="Unmapped"
+          value={
+            details.unmappedCandidates.length
+              ? details.unmappedCandidates
+                  .slice(0, 6)
+                  .map((candidate) => candidate.label.replace(/^Pseudo:\s*/i, ""))
+                  .join(" | ")
+              : "none"
+          }
+        />
+        <DebugDatum
+          label="Request"
+          value={
+            request
+              ? `${request.league}, ${enabledFilters}/${request.filters.length} mapped filters, limit ${request.limit ?? 10}`
+              : "none"
+          }
+        />
+        <DebugDatum
+          label="Result"
+          value={
+            result
+              ? `${result.source}, total ${result.total}, fetched ${result.listings.length}, query ${result.queryId ?? "none"}`
+              : "none"
+          }
+        />
+      </div>
+      {request?.filters.length ? (
+        <p className="debug-filter-list">
+          {request.filters
+            .slice(0, 8)
+            .map(
+              (filter) =>
+                `${filter.tradeStatId ?? "unmapped"} min=${filter.min ?? "-"} max=${filter.max ?? "-"}`
+            )
+            .join(" | ")}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function DebugDatum({ label, value }: { label: string; value: string }) {
+  return (
+    <p className="debug-datum">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </p>
   );
 }
 

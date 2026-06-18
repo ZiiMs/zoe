@@ -33,10 +33,13 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Layout notes: `apps/desktop/src/styles.css` adds fixed quick summary slots, stable loading placeholder rows, bounded filter/listing scroll regions, and disabled trade-link styling so loading results do not resize the panel unpredictably.
   - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, `bun run test:desktop`, and `bun run build:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
-- [ ] Improve settings and debug workflow:
+- [x] Improve settings and debug workflow:
   - Let users change API base URL and league from existing API metadata.
   - Show API health, parse warnings, unmapped stats, request details, and result details in a compact debug area.
   - Keep debug messages useful for diagnosing stat mapping and official trade failures.
+  - Completed settings/debug notes: `apps/desktop/src/main.tsx` now preserves editable API base URL and league selection while adding a structured settings debug summary for API status, base URL, selected league, metadata counts, parse warnings, unmapped stat labels, last request filters, and result totals/query details. The existing event log remains below the summary for capture, metadata, stat mapping, and official trade failure diagnostics.
+  - Layout notes: `apps/desktop/src/styles.css` adds compact debug grid styling so long URLs, warnings, unmapped labels, and trade stat IDs wrap within the settings panel.
+  - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, `bun run test:desktop`, and `bun run build:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
 - [ ] Add desktop tests where practical:
   - Cover pure helpers for league selection, price formatting, listed age formatting, quick panel positioning, and any extracted parser-to-UI mapping.
