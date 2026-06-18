@@ -47,11 +47,7 @@ export async function summarizeBuilds(options: SummarizeBuildsOptions = {}) {
 
 export async function aggregateHeatmaps(options: AggregateHeatmapsOptions = {}) {
   const builds = options.builds ?? (await ingestPoeNinja(options.ingest));
-  return aggregatePassiveHeatmap(
-    builds,
-    options.league ?? "Dawn of the Hunt",
-    options.generatedAt
-  );
+  return aggregatePassiveHeatmap(builds, options.league ?? "Dawn of the Hunt", options.generatedAt);
 }
 
 export async function persistFixtureBuildIntelligence(
@@ -60,11 +56,7 @@ export async function persistFixtureBuildIntelligence(
 ): Promise<StoredRecordCounts> {
   const builds = await ingestPoeNinja({ capturedAt: options.capturedAt });
   const summaries = builds.map((build) => summarizeBuild(build, options.summaryGeneratedAt));
-  const heatmap = aggregatePassiveHeatmap(
-    builds,
-    "Dawn of the Hunt",
-    options.heatmapGeneratedAt
-  );
+  const heatmap = aggregatePassiveHeatmap(builds, "Dawn of the Hunt", options.heatmapGeneratedAt);
 
   return storeBuildIntelligence(client, {
     builds,

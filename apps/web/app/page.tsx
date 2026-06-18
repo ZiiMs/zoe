@@ -24,7 +24,9 @@ export default async function HomePage({
   );
 }
 
-async function loadInitialData(params: Record<string, string | string[] | undefined>): Promise<BuildSearchResponse> {
+async function loadInitialData(
+  params: Record<string, string | string[] | undefined>
+): Promise<BuildSearchResponse> {
   try {
     return await api.builds({
       league: first(params.league),
@@ -67,11 +69,18 @@ function first(value: string | string[] | undefined) {
 
 function list(value: string | string[] | undefined) {
   const rawValues = Array.isArray(value) ? value : value ? [value] : [];
-  return rawValues.flatMap((rawValue) => rawValue.split(",")).map((item) => item.trim()).filter(Boolean);
+  return rawValues
+    .flatMap((rawValue) => rawValue.split(","))
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function parseSort(value?: string) {
-  return value === "dps" || value === "life" || value === "energyshield" || value === "ehp" || value === "level"
+  return value === "dps" ||
+    value === "life" ||
+    value === "energyshield" ||
+    value === "ehp" ||
+    value === "level"
     ? value
     : undefined;
 }

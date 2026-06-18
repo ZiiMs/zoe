@@ -15,10 +15,15 @@ This phase prepares Zoe for sustained development and shareable builds. It tight
     - Existing README covers core setup and commands but is missing later release-readiness details called out by follow-up tasks.
     - No `docs/` or `.github/` workflow directory exists yet; generated outputs are ignored in `.gitignore`.
 
-- [ ] Make repo-wide checks reliable:
+- [x] Make repo-wide checks reliable:
   - Ensure `bun run typecheck`, `bun run lint`, `bun run test`, `bun run build`, and `bun run format:check` either pass or fail for actionable project reasons.
   - Fix legitimate TypeScript, lint, formatting, and test failures introduced by earlier phases.
   - Do not mask failures by weakening rules unless the codebase already uses that local pattern.
+  - Completed on 2026-06-18:
+    - Ran `bun run typecheck`, `bun run lint`, `bun run test`, and `bun run build`; all completed successfully across the Turbo workspace.
+    - Fixed `bun run format:check` by applying Prettier to `apps/api/src/fixtures.ts`, `apps/web/app/globals.css`, `apps/web/app/page.tsx`, `apps/worker/src/jobs.ts`, `packages/domain/src/trade-fixtures.test.ts`, and UI component files in `packages/ui/src/`.
+    - Re-ran `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run test`, and `bun run build`; all passed after formatting.
+    - `bun run lint` still reports non-blocking `@next/next/no-img-element` warnings in existing web pages, but exits successfully with 0 errors.
 
 - [ ] Add structured architecture documentation for future agents:
   - Create `docs/architecture/system-overview.md` with YAML front matter using `type: reference`, `title: Zoe System Overview`, current date, tags `[architecture, poe2, zoe]`, and wiki-links to related docs.

@@ -200,16 +200,18 @@ Explicit Modifiers:
         })
       ])
     );
-    expect(attached.find((candidate) => candidate.id === "pseudo-total-elemental-resistance"))
-      .toMatchObject({
-        enabled: true,
-        tradeStatId: "pseudo.pseudo_total_elemental_resistance"
-      });
-    expect(attached.find((candidate) => candidate.label.includes("Fire Resistance")))
-      .toMatchObject({
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-elemental-resistance")
+    ).toMatchObject({
+      enabled: true,
+      tradeStatId: "pseudo.pseudo_total_elemental_resistance"
+    });
+    expect(attached.find((candidate) => candidate.label.includes("Fire Resistance"))).toMatchObject(
+      {
         enabled: false,
         tradeStatId: "implicit.stat_implicit_fire_resistance"
-      });
+      }
+    );
   });
 
   it("parses and maps a rare weapon with ranged, enchant, crafted, and fractured modifiers", () => {
@@ -271,23 +273,26 @@ Crafted Modifiers:
         expect.objectContaining({ source: "fractured", text: "+25 to Strength" })
       ])
     );
-    expect(attached.find((candidate) => candidate.label === "Adds 12 to 24 Physical Damage"))
-      .toMatchObject({
-        enabled: true,
-        min: 24,
-        tradeStatId: "explicit.stat_added_physical_damage"
-      });
-    expect(attached.find((candidate) => candidate.label === "+5% increased Attack Speed"))
-      .toMatchObject({
-        source: "enchant",
-        tradeStatId: "enchant.stat_attack_speed"
-      });
-    expect(attached.find((candidate) => candidate.id === "pseudo-total-maximum-mana"))
-      .toMatchObject({
-        enabled: true,
-        min: 15,
-        tradeStatId: "pseudo.pseudo_total_maximum_mana"
-      });
+    expect(
+      attached.find((candidate) => candidate.label === "Adds 12 to 24 Physical Damage")
+    ).toMatchObject({
+      enabled: true,
+      min: 24,
+      tradeStatId: "explicit.stat_added_physical_damage"
+    });
+    expect(
+      attached.find((candidate) => candidate.label === "+5% increased Attack Speed")
+    ).toMatchObject({
+      source: "enchant",
+      tradeStatId: "enchant.stat_attack_speed"
+    });
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-maximum-mana")
+    ).toMatchObject({
+      enabled: true,
+      min: 15,
+      tradeStatId: "pseudo.pseudo_total_maximum_mana"
+    });
   });
 
   it("parses unique item metadata and keeps useful exact candidates mapped", () => {
@@ -329,16 +334,18 @@ Explicit Modifiers:
         expect.objectContaining({ source: "explicit", text: "+10% increased Attack Speed" })
       ])
     );
-    expect(attached.find((candidate) => candidate.id === "pseudo-total-maximum-life"))
-      .toMatchObject({
-        enabled: true,
-        tradeStatId: "pseudo.pseudo_total_maximum_life"
-      });
-    expect(attached.find((candidate) => candidate.label === "+10% increased Attack Speed"))
-      .toMatchObject({
-        enabled: true,
-        tradeStatId: "explicit.stat_attack_speed"
-      });
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-maximum-life")
+    ).toMatchObject({
+      enabled: true,
+      tradeStatId: "pseudo.pseudo_total_maximum_life"
+    });
+    expect(
+      attached.find((candidate) => candidate.label === "+10% increased Attack Speed")
+    ).toMatchObject({
+      enabled: true,
+      tradeStatId: "explicit.stat_attack_speed"
+    });
   });
 
   it("parses socketed item metadata without treating sockets as stat candidates", () => {
@@ -420,21 +427,24 @@ Explicit Modifiers:
         })
       ])
     );
-    expect(attached.find((candidate) => candidate.id === "pseudo-total-elemental-resistance"))
-      .toMatchObject({
-        enabled: true,
-        tradeStatId: "pseudo.pseudo_total_elemental_resistance"
-      });
-    expect(attached.find((candidate) => candidate.label === "+8% to all Elemental Resistances"))
-      .toMatchObject({
-        enabled: false,
-        normalizedText: "#% to all elemental resistances",
-        tradeStatId: "explicit.stat_all_elemental_resistances"
-      });
-    expect(attached.find((candidate) => candidate.id === "pseudo-total-chaos-resistance"))
-      .toMatchObject({
-        enabled: true,
-        tradeStatId: "pseudo.pseudo_total_chaos_resistance"
-      });
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-elemental-resistance")
+    ).toMatchObject({
+      enabled: true,
+      tradeStatId: "pseudo.pseudo_total_elemental_resistance"
+    });
+    expect(
+      attached.find((candidate) => candidate.label === "+8% to all Elemental Resistances")
+    ).toMatchObject({
+      enabled: false,
+      normalizedText: "#% to all elemental resistances",
+      tradeStatId: "explicit.stat_all_elemental_resistances"
+    });
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-chaos-resistance")
+    ).toMatchObject({
+      enabled: true,
+      tradeStatId: "pseudo.pseudo_total_chaos_resistance"
+    });
   });
 });

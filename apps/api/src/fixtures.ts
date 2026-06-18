@@ -82,7 +82,12 @@ export const fixtureBuilds = [
       { name: "Charged Staff", usageCount: 6 }
     ],
     items: [
-      { slot: "weapon", name: "Expert Gothic Quarterstaff", baseType: "Quarterstaff", rarity: "Rare" },
+      {
+        slot: "weapon",
+        name: "Expert Gothic Quarterstaff",
+        baseType: "Quarterstaff",
+        rarity: "Rare"
+      },
       { slot: "gloves", name: "Grip of Thunder", baseType: "Gloves", rarity: "Unique" }
     ],
     passives: [
