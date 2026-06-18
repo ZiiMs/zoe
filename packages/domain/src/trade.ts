@@ -1,4 +1,10 @@
-export type TradeModifierSource = "implicit" | "explicit" | "crafted" | "enchant" | "fractured" | "unknown";
+export type TradeModifierSource =
+  | "implicit"
+  | "explicit"
+  | "crafted"
+  | "enchant"
+  | "fractured"
+  | "unknown";
 
 export interface ParsedItemModifier {
   id: string;
@@ -153,7 +159,10 @@ export function parseTradeItemText(rawText: string): ParsedTradeItem {
       continue;
     }
 
-    for (const line of section) {
+    const sectionSource = modifierSourceFromHeading(heading);
+    const lines = sectionSource ? section.slice(1) : section;
+
+    for (const line of lines) {
       const itemLevelMatch = line.match(/^Item Level:\s*(\d+)/i);
       if (itemLevelMatch) {
         itemLevel = Number(itemLevelMatch[1]);
@@ -172,12 +181,21 @@ export function parseTradeItemText(rawText: string): ParsedTradeItem {
       }
 
       if (isModifierLine(line)) {
-        modifiers.push(toParsedModifier(line, modifiers.length));
+        modifiers.push(toParsedModifier(line, modifiers.length, sectionSource));
+        continue;
+      }
+
+      const warning = parseWarningForUnsupportedLine(line, sectionSource);
+      if (warning) {
+        parseWarnings.push(warning);
       }
     }
   }
 
-  if ((!metadata.itemClass && !metadata.rarity && sections.length < 2) || (!metadata.name && !metadata.baseType && modifiers.length === 0)) {
+  if (
+    (!metadata.itemClass && !metadata.rarity && sections.length < 2) ||
+    (!metadata.name && !metadata.baseType && modifiers.length === 0)
+  ) {
     parseWarnings.push("Item text was not recognized as a supported PoE2 item.");
   }
 
@@ -236,7 +254,13 @@ export function attachTradeStatIds(
   }));
 }
 
-export function findTradeStatId(candidate: Pick<TradeStatCandidate | TradePriceCheckFilter, "label" | "normalizedText" | "source">, statGroups: TradeStatGroup[]) {
+export function findTradeStatId(
+  candidate: Pick<
+    TradeStatCandidate | TradePriceCheckFilter,
+    "label" | "normalizedText" | "source"
+  >,
+  statGroups: TradeStatGroup[]
+) {
   const entries = statGroups.flatMap((group) => group.entries);
   const preferredType = candidate.source === "pseudo" ? "pseudo" : undefined;
   const normalizedLabel = normalizeStatText(candidate.label);
@@ -245,7 +269,8 @@ export function findTradeStatId(candidate: Pick<TradeStatCandidate | TradePriceC
   const exact = entries.find(
     (entry) =>
       (!preferredType || entry.type === preferredType) &&
-      (normalizeStatText(entry.text) === normalizedLabel || normalizeStatText(entry.text) === normalizedText)
+      (normalizeStatText(entry.text) === normalizedLabel ||
+        normalizeStatText(entry.text) === normalizedText)
   );
   if (exact) {
     return exact.id;
@@ -288,7 +313,9 @@ function emptyParsedTradeItem(rawText: string, parseWarnings: string[]): ParsedT
 function parseHeader(lines: string[]) {
   const itemClass = valueAfterPrefix(lines, "Item Class:");
   const rarity = valueAfterPrefix(lines, "Rarity:");
-  const rest = lines.filter((line) => !line.startsWith("Item Class:") && !line.startsWith("Rarity:"));
+  const rest = lines.filter(
+    (line) => !line.startsWith("Item Class:") && !line.startsWith("Rarity:")
+  );
 
   if (rarity === "Rare" && rest.length >= 2) {
     return { itemClass, rarity, name: rest[0], baseType: rest[1] };
@@ -302,11 +329,17 @@ function parseHeader(lines: string[]) {
 }
 
 function valueAfterPrefix(lines: string[], prefix: string) {
-  return lines.find((line) => line.startsWith(prefix))?.slice(prefix.length).trim();
+  return lines
+    .find((line) => line.startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim();
 }
 
 function isModifierLine(line: string) {
-  if (/^(Requirements|Requires|Item Level|Quality|Sockets|Rune Sockets|Charm Slots):/i.test(line)) {
+  if (
+    /^(Requirements|Requires|Item Level|Quality|Sockets|Rune Sockets|Charm Slots):/i.test(line) ||
+    modifierSourceFromHeading(line)
+  ) {
     return false;
   }
 
@@ -317,8 +350,12 @@ function isModifierLine(line: string) {
   return /[+-]?\d/.test(line) || /\((implicit|enchant|crafted|fractured)\)$/i.test(line);
 }
 
-function toParsedModifier(line: string, index: number): ParsedItemModifier {
-  const source = modifierSource(line);
+function toParsedModifier(
+  line: string,
+  index: number,
+  fallbackSource: TradeModifierSource = "explicit"
+): ParsedItemModifier {
+  const source = modifierSource(line, fallbackSource);
   const cleanText = line.replace(/\s+\((implicit|enchant|crafted|fractured)\)$/i, "").trim();
 
   return {
@@ -330,20 +367,55 @@ function toParsedModifier(line: string, index: number): ParsedItemModifier {
   };
 }
 
-function modifierSource(line: string): TradeModifierSource {
+function modifierSource(line: string, fallbackSource: TradeModifierSource): TradeModifierSource {
   if (/\(implicit\)$/i.test(line)) return "implicit";
   if (/\(crafted\)$/i.test(line)) return "crafted";
   if (/\(enchant\)$/i.test(line)) return "enchant";
   if (/\(fractured\)$/i.test(line)) return "fractured";
-  return "explicit";
+  return fallbackSource;
+}
+
+function modifierSourceFromHeading(line: string): TradeModifierSource | undefined {
+  if (/^Implicit Modifiers?:$/i.test(line)) return "implicit";
+  if (/^Explicit Modifiers?:$/i.test(line)) return "explicit";
+  if (/^Crafted Modifiers?:$/i.test(line)) return "crafted";
+  if (/^Enchant Modifiers?:$/i.test(line)) return "enchant";
+  if (/^Fractured Modifiers?:$/i.test(line)) return "fractured";
+  return undefined;
+}
+
+function parseWarningForUnsupportedLine(
+  line: string,
+  sectionSource: TradeModifierSource | undefined
+) {
+  if (sectionSource) {
+    return `Unsupported ${sectionSource} modifier line: ${line}`;
+  }
+
+  if (/^[A-Z][A-Za-z ]+:/.test(line) && !isKnownDescriptiveLine(line)) {
+    return `Unsupported item text line: ${line}`;
+  }
+
+  return undefined;
+}
+
+function isKnownDescriptiveLine(line: string) {
+  return /^(Corrupted|Mirrored|Unidentified|Unmodifiable|Unmodifiable While Corrupted)$/i.test(
+    line
+  );
 }
 
 function valuesFromText(text: string) {
   return Array.from(text.matchAll(/[+-]?\d+(?:\.\d+)?/g), (match) => Number(match[0]));
 }
 
-function createStatCandidates(modifiers: ParsedItemModifier[], pseudoSuggestions: PseudoStatSuggestion[]): TradeStatCandidate[] {
-  const coveredIds = new Set(pseudoSuggestions.flatMap((suggestion) => suggestion.coveredModifierIds));
+function createStatCandidates(
+  modifiers: ParsedItemModifier[],
+  pseudoSuggestions: PseudoStatSuggestion[]
+): TradeStatCandidate[] {
+  const coveredIds = new Set(
+    pseudoSuggestions.flatMap((suggestion) => suggestion.coveredModifierIds)
+  );
   const pseudoCandidates = pseudoSuggestions.map((suggestion) => ({
     id: suggestion.id,
     label: suggestion.label,
@@ -394,9 +466,27 @@ function createPseudoSuggestions(modifiers: ParsedItemModifier[]): PseudoStatSug
     });
   }
 
-  addSinglePseudo(suggestions, modifiers, pseudoMatchers.chaosResistance, "pseudo-total-chaos-resistance", "Pseudo: total chaos resistance");
-  addSinglePseudo(suggestions, modifiers, pseudoMatchers.maximumLife, "pseudo-total-maximum-life", "Pseudo: total maximum life");
-  addSinglePseudo(suggestions, modifiers, pseudoMatchers.maximumMana, "pseudo-total-maximum-mana", "Pseudo: total maximum mana");
+  addSinglePseudo(
+    suggestions,
+    modifiers,
+    pseudoMatchers.chaosResistance,
+    "pseudo-total-chaos-resistance",
+    "Pseudo: total chaos resistance"
+  );
+  addSinglePseudo(
+    suggestions,
+    modifiers,
+    pseudoMatchers.maximumLife,
+    "pseudo-total-maximum-life",
+    "Pseudo: total maximum life"
+  );
+  addSinglePseudo(
+    suggestions,
+    modifiers,
+    pseudoMatchers.maximumMana,
+    "pseudo-total-maximum-mana",
+    "Pseudo: total maximum mana"
+  );
   addSinglePseudo(
     suggestions,
     modifiers,

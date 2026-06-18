@@ -17,10 +17,16 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
     - Coverage gaps for following tasks: representative rare weapons, unique items, socketed/rune/charm items, fractured/crafted/enchant sections beyond source suffix parsing, mixed resistance edge cases, normalized range/signed/percentage values, explicit stat ID attachment tests in `packages/domain`, and parser warnings for unsupported but meaningful sections.
     - Validation run: `bun run test:domain` passed with 1 test file and 6 tests.
 
-- [ ] Expand parser support for common PoE2 item text sections:
+- [x] Expand parser support for common PoE2 item text sections:
   - Handle item class, rarity, rare and unique name/base lines, item level, quality, requirements, sockets, rune sockets, charm slots, implicit modifiers, explicit modifiers, crafted modifiers, enchant modifiers, and fractured modifiers.
   - Preserve unknown but useful lines in parse warnings only when they indicate unsupported or malformed input.
   - Keep parsing tolerant: malformed clipboard text should return a structured empty item with warnings rather than throwing.
+  - Completion notes:
+    - `packages/domain/src/trade.ts` now supports modifier section headings for implicit, explicit, crafted, enchant, and fractured modifiers, while preserving parenthetical source overrides.
+    - Socket metadata now continues to preserve `Sockets`, `Rune Sockets`, and `Charm Slots` lines in the shared `sockets` array.
+    - Unsupported or malformed lines are reported as targeted parse warnings when they appear inside a modifier section or look like an unsupported item-text heading.
+    - Added domain coverage for unique item name/base parsing, quality, requirements, item level, socket/rune/charm lines, section-scoped modifier sources, and warning behavior.
+    - Validation run: `bun run test:domain` passed with 1 test file and 8 tests; `bun run typecheck` passed for all 9 packages.
 
 - [ ] Improve modifier normalization and candidate generation:
   - Normalize numeric ranges, signed values, percentages, local tags, and parenthetical source markers consistently.

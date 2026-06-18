@@ -152,4 +152,87 @@ Item Level: 80
     expect(item.modifiers).toHaveLength(0);
     expect(item.parseWarnings).toHaveLength(1);
   });
+
+  it("parses common item text sections and section-scoped modifier sources", () => {
+    const item = parseTradeItemText(`Item Class: Quarterstaves
+Rarity: Unique
+Pillar of the Caged God
+Long Quarterstaff
+--------
+Quality: +20%
+--------
+Requirements:
+Level: 22
+Dex: 42
+Int: 42
+--------
+Sockets: S S
+Rune Sockets: 2
+Charm Slots: 1
+--------
+Item Level: 84
+--------
+Implicit Modifiers:
++12% to Global Critical Strike Chance
+--------
+Enchant Modifiers:
++5% increased Attack Speed
+--------
+Fractured Modifiers:
++25 to Strength
+--------
+Explicit Modifiers:
++20% increased Damage
++10% to Fire Resistance
+--------
+Crafted Modifiers:
++15 to maximum Mana
+--------
+Corrupted`);
+
+    expect(item.itemClass).toBe("Quarterstaves");
+    expect(item.rarity).toBe("Unique");
+    expect(item.name).toBe("Pillar of the Caged God");
+    expect(item.baseType).toBe("Long Quarterstaff");
+    expect(item.quality).toBe(20);
+    expect(item.itemLevel).toBe(84);
+    expect(item.requirements).toEqual(["Level: 22", "Dex: 42", "Int: 42"]);
+    expect(item.sockets).toEqual(["Sockets: S S", "Rune Sockets: 2", "Charm Slots: 1"]);
+    expect(item.parseWarnings).toEqual([]);
+    expect(item.modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: "implicit",
+          text: "+12% to Global Critical Strike Chance"
+        }),
+        expect.objectContaining({ source: "enchant", text: "+5% increased Attack Speed" }),
+        expect.objectContaining({ source: "fractured", text: "+25 to Strength" }),
+        expect.objectContaining({ source: "explicit", text: "+20% increased Damage" }),
+        expect.objectContaining({ source: "crafted", text: "+15 to maximum Mana" })
+      ])
+    );
+  });
+
+  it("preserves unsupported section lines as targeted parse warnings", () => {
+    const item = parseTradeItemText(`Item Class: Rings
+Rarity: Rare
+Rune Loop
+Amethyst Ring
+--------
+Explicit Modifiers:
++12% to Chaos Resistance
+Requires unsupported omen
+--------
+Veiled Modifiers:
++10 to Dexterity`);
+
+    expect(item.modifiers).toEqual([
+      expect.objectContaining({ source: "explicit", text: "+12% to Chaos Resistance" }),
+      expect.objectContaining({ source: "explicit", text: "+10 to Dexterity" })
+    ]);
+    expect(item.parseWarnings).toEqual([
+      "Unsupported explicit modifier line: Requires unsupported omen",
+      "Unsupported item text line: Veiled Modifiers:"
+    ]);
+  });
 });
