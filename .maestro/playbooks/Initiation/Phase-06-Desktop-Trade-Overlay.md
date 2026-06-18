@@ -25,10 +25,13 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Completed hotkey/state notes: `apps/desktop/src/main.tsx` now keeps the existing `CommandOrControl+D` quick price check and `Shift+Space` settings toggle, but replaces only Zoe-owned shortcuts instead of calling `unregisterAll`. A window-scoped setup token prevents stale hot-reload cleanup from unregistering the current handlers, and shortcut callbacks ignore stale setup instances. Escape still routes through `closeOverlay`, which closes the overlay and returns it to passive mode. The settings click-through action now uses an explicit passive-mode handler, and `apps/desktop/src/styles.css` mirrors passive click-through behavior for renderer-only fallback by disabling pointer events while the overlay is open in passive mode.
   - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run test:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
-- [ ] Improve the quick price panel workflow:
+- [x] Improve the quick price panel workflow:
   - Show item name, base type, league, item level, mapped filter count, enabled filters, loading state, price check result count, prices, listed age, and trade link.
   - Keep controls dense and stable so the panel does not resize unpredictably while listings load.
   - Let users enable or disable candidate filters and adjust min/max values before rerunning search.
+  - Completed quick panel notes: `apps/desktop/src/main.tsx` now shows item name and base type separately, league, rarity, item level, mapped filter count, enabled filter count, loading state, fetched/total listing counts, listing prices, listed ages, seller or item fallback text, and trade links from each listing or the active search. The compact filter rows remain adjustable with enable toggles plus min/max inputs before rerunning search.
+  - Layout notes: `apps/desktop/src/styles.css` adds fixed quick summary slots, stable loading placeholder rows, bounded filter/listing scroll regions, and disabled trade-link styling so loading results do not resize the panel unpredictably.
+  - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, `bun run test:desktop`, and `bun run build:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
 - [ ] Improve settings and debug workflow:
   - Let users change API base URL and league from existing API metadata.

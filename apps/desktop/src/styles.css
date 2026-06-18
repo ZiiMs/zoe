@@ -341,11 +341,14 @@ h1 {
 }
 
 .quick-header span {
+  overflow: hidden;
   color: #80c7b6;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .quick-header strong {
@@ -841,6 +844,14 @@ h1 {
   white-space: normal;
 }
 
+.quick-header span {
+  display: block;
+  color: #c8c4b6;
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.03em;
+}
+
 .quick-header .mini-icon-button {
   margin-top: 1px;
 }
@@ -872,6 +883,13 @@ h1 {
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.quick-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quick-market {
@@ -907,6 +925,47 @@ h1 {
   text-transform: uppercase;
 }
 
+.quick-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 50px;
+  border-bottom: 1px solid #2d2d2c;
+  background: #111216;
+}
+
+.quick-stats div {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 10px;
+  border-right: 1px solid #242529;
+}
+
+.quick-stats div:last-child {
+  border-right: 0;
+}
+
+.quick-stats span {
+  overflow: hidden;
+  color: #73756f;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.quick-stats strong {
+  overflow: hidden;
+  color: #fff0bd;
+  font-size: 12px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .quick-market-button {
   display: inline-grid;
   place-items: center;
@@ -935,8 +994,8 @@ h1 {
 }
 
 .quick-mods {
-  max-height: 162px;
-  min-height: 162px;
+  max-height: 136px;
+  min-height: 136px;
   padding: 0 16px;
   overflow: auto;
 }
@@ -1074,20 +1133,26 @@ h1 {
 }
 
 .quick-sales-list {
-  max-height: 218px;
+  max-height: 176px;
   overflow: auto;
   padding-right: 2px;
 }
 
 .quick-result-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 58px 64px;
+  grid-template-columns: minmax(0, 1fr) 52px 56px 18px;
   align-items: center;
   gap: 8px;
-  min-height: 22px;
+  min-height: 30px;
   color: #a9a18a;
   font-size: 10px;
   font-weight: 800;
+}
+
+.quick-result-row div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
 }
 
 .quick-result-row strong {
@@ -1098,10 +1163,39 @@ h1 {
   white-space: nowrap;
 }
 
+.quick-result-row small {
+  overflow: hidden;
+  color: #747671;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .quick-result-row span {
   flex-shrink: 0;
   color: #747671;
   text-align: right;
+}
+
+.quick-result-row a {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: #ffe275;
+  text-decoration: none;
+}
+
+.quick-result-row svg {
+  width: 12px;
+  height: 12px;
+}
+
+.skeleton-row {
+  opacity: 0.58;
 }
 
 .muted-result {
@@ -1127,6 +1221,11 @@ h1 {
   text-decoration: none;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.quick-actions .disabled-link {
+  color: #676962;
+  cursor: default;
 }
 
 .quick-actions svg {

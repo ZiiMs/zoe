@@ -564,15 +564,17 @@ function QuickPricePanel({
 }) {
   const listedCount = result?.total ?? 0;
   const mappedCount = candidates.filter((candidate) => candidate.tradeStatId).length;
+  const enabledCount = candidates.filter((candidate) => candidate.enabled).length;
   const hasSearchError = notice.startsWith("Price check failed:");
   const leagueLabel = formatLeagueLabel(leagues, league);
+  const listingStatus = isLoading ? "Loading" : hasSearchError ? "Error" : `${listedCount} Listed`;
 
   return (
     <>
       <header className="quick-header">
         <div>
           <strong>{item?.name ?? "Item price check"}</strong>
-          <strong>{item?.baseType ?? "Ready"}</strong>
+          <span>{item?.baseType ?? "Ready to scan"}</span>
         </div>
         <button className="mini-icon-button" title="Close overlay" type="button" onClick={onClose}>
           <X aria-hidden="true" />
@@ -581,13 +583,14 @@ function QuickPricePanel({
 
       <section className="quick-meta" aria-label="Item summary">
         <span>{leagueLabel}</span>
+        <span>{item?.rarity ?? "No item"}</span>
         <span>ilvl: {item?.itemLevel ?? "--"}</span>
       </section>
 
       <section className="quick-market" aria-label="Market status">
         <div>
           <span>Market status</span>
-          <strong>{isLoading ? "..." : hasSearchError ? "Error" : `${listedCount} Listed`}</strong>
+          <strong>{listingStatus}</strong>
         </div>
         <button
           className="quick-market-button"
@@ -599,9 +602,28 @@ function QuickPricePanel({
         </button>
       </section>
 
+      <section className="quick-stats" aria-label="Price check summary">
+        <div>
+          <span>Mapped</span>
+          <strong>
+            {mappedCount}/{candidates.length}
+          </strong>
+        </div>
+        <div>
+          <span>Enabled</span>
+          <strong>{enabledCount}</strong>
+        </div>
+        <div>
+          <span>Fetched</span>
+          <strong>
+            {isLoading ? "--" : result ? `${result.listings.length}/${result.total}` : "--"}
+          </strong>
+        </div>
+      </section>
+
       <div className="quick-section-label">
-        <span>Item modifiers {candidates.length ? `${mappedCount}/${candidates.length}` : ""}</span>
-        <b>⌃</b>
+        <span>Search filters</span>
+        <b>{enabledCount} on</b>
       </div>
 
       <section className="quick-mods" aria-label="Search filters">
@@ -620,6 +642,7 @@ function QuickPricePanel({
           <span>Search</span>
         </button>
         <a
+          className={!result?.tradeUrl ? "disabled-link" : undefined}
           aria-disabled={!result?.tradeUrl}
           href={result?.tradeUrl ?? "#"}
           onClick={(event) => {
@@ -638,21 +661,56 @@ function QuickPricePanel({
 
       <section className="quick-result-strip" aria-label="Fetched listings">
         <div className="quick-sales-heading">
-          <span>Sales</span>
-          <span>{result ? `${result.listings.length}/${result.total}` : "0"}</span>
+          <span>Listings</span>
+          <span>
+            {isLoading
+              ? "Loading"
+              : result
+                ? `${result.listings.length}/${result.total}`
+                : "Waiting"}
+          </span>
         </div>
         <div className="quick-sales-list">
-          {(result?.listings ?? []).map((listing) => (
-            <div className="quick-result-row" key={listing.id}>
-              <strong>{formatPrice(listing)}</strong>
-              <span>{formatItemLevel(listing.itemLevel)}</span>
-              <span>{formatListedAge(listing.listedAt)}</span>
-            </div>
-          ))}
+          {isLoading
+            ? Array.from({ length: 5 }, (_, index) => (
+                <div className="quick-result-row skeleton-row" key={index}>
+                  <strong>Checking</strong>
+                  <span>--</span>
+                  <span>--</span>
+                  <span />
+                </div>
+              ))
+            : null}
+          {!isLoading
+            ? (result?.listings ?? []).map((listing) => (
+                <article className="quick-result-row" key={listing.id}>
+                  <div>
+                    <strong>{formatPrice(listing)}</strong>
+                    <small>{listing.seller ?? listing.itemName}</small>
+                  </div>
+                  <span>{formatItemLevel(listing.itemLevel)}</span>
+                  <span>{formatListedAge(listing.listedAt)}</span>
+                  <a
+                    aria-label={`Open trade listing for ${listing.itemName}`}
+                    href={listing.tradeUrl ?? result?.tradeUrl ?? "#"}
+                    onClick={(event) => {
+                      if (!listing.tradeUrl && !result?.tradeUrl) {
+                        event.preventDefault();
+                      }
+                    }}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open listing"
+                  >
+                    <ExternalLink aria-hidden="true" />
+                  </a>
+                </article>
+              ))
+            : null}
           {result && result.listings.length === 0 ? (
             <div className="quick-result-row muted-result">No fetched listings</div>
           ) : null}
-          {!result ? (
+          {!isLoading && !result ? (
             <div className="quick-result-row muted-result">Search to load listings</div>
           ) : null}
         </div>
