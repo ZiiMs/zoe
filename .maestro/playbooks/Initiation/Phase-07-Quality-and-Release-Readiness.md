@@ -35,10 +35,14 @@ This phase prepares Zoe for sustained development and shareable builds. It tight
     - Added `docs/architecture/build-intelligence-flow.md` covering worker ingestion, normalization, summaries, heatmap aggregation, Postgres persistence, API reads, and web rendering.
     - Verified Markdown formatting with `bunx prettier --check docs/architecture/system-overview.md docs/architecture/trade-flow.md docs/architecture/build-intelligence-flow.md`.
 
-- [ ] Add structured decision records for major tradeoffs:
+- [x] Add structured decision records for major tradeoffs:
   - Create `docs/decisions/adr-001-fixture-first-development.md` with YAML front matter using `type: analysis`, `title: Fixture First Development`, tags `[adr, testing, reliability]`, and related wiki-links.
   - Create `docs/decisions/adr-002-local-api-as-overlay-gateway.md` with front matter, explaining why the desktop overlay calls the local Zoe API instead of official trade APIs directly.
   - Keep ADRs concise, factual, and tied to implemented behavior.
+  - Completed on 2026-06-18:
+    - Added `docs/decisions/adr-001-fixture-first-development.md` documenting the accepted fixture-first testing and local development tradeoff.
+    - Added `docs/decisions/adr-002-local-api-as-overlay-gateway.md` documenting the accepted local API gateway boundary for overlay trade calls.
+    - Verified ADR Markdown formatting with `bunx prettier --check docs/decisions/adr-001-fixture-first-development.md docs/decisions/adr-002-local-api-as-overlay-gateway.md`.
 
 - [ ] Improve README developer workflow only where it is missing or stale:
   - Include setup, `bun install`, optional Postgres startup, API/web/desktop/worker dev commands, validation commands, and fixture fallback behavior.
