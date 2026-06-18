@@ -9,7 +9,10 @@ const jetBrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Zoe Espresso Observatory",
-  description: "Caffeine-fueled Path of Exile 2 build intelligence"
+  description: "Caffeine-fueled Path of Exile 2 build intelligence",
+  icons: {
+    icon: "/icon"
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
