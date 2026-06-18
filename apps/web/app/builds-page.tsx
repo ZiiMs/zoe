@@ -25,7 +25,9 @@ import {
   Boxes,
   Brain,
   ChevronDown,
+  Clock3,
   Gem,
+  PackageSearch,
   RadioTower,
   RotateCcw,
   Search,
@@ -384,6 +386,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
                               <th className="px-3 py-3 font-medium">Defenses</th>
                               <th className="px-3 py-3 font-medium">Main skills</th>
                               <th className="px-3 py-3 font-medium">Key gear</th>
+                              <th className="px-3 py-3 font-medium">Freshness</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -401,28 +404,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardDescription>Selected league</CardDescription>
-                <CardTitle>Class distribution</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3">
-                {data.league.statistics.slice(0, 7).map((stat) => (
-                  <div className="grid gap-2" key={stat.className}>
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span>{stat.className}</span>
-                      <span className="text-muted-foreground">{stat.percentage.toFixed(2)}%</span>
-                    </div>
-                    <div className="h-2 bg-muted">
-                      <div
-                        className="h-full bg-primary"
-                        style={{ width: `${Math.min(stat.percentage, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <SummaryPanels data={data} />
           </section>
         </div>
       </div>
@@ -640,6 +622,9 @@ function BuildRow({ build, index }: { build: BuildSnapshot; index: number }) {
       <td className="px-3 py-4">
         <ChipList items={items} />
       </td>
+      <td className="px-3 py-4">
+        <FreshnessStamp capturedAt={build.capturedAt} source={build.source} />
+      </td>
     </tr>
   );
 }
@@ -711,6 +696,140 @@ function ChipList({ items }: { items: string[] }) {
           {item}
         </span>
       ))}
+    </div>
+  );
+}
+
+function FreshnessStamp({
+  capturedAt,
+  source
+}: {
+  capturedAt: string;
+  source: BuildSnapshot["source"];
+}) {
+  return (
+    <div className="grid gap-1 text-xs">
+      <span className="inline-flex items-center gap-1.5 font-medium">
+        <Clock3 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+        {formatRelativeTime(capturedAt)}
+      </span>
+      <span className="text-muted-foreground">{source}</span>
+    </div>
+  );
+}
+
+function SummaryPanels({ data }: { data: BuildSearchResponse }) {
+  const skills = optionsForGroup(data.filters, "skills");
+  const supports = optionsForGroup(data.filters, "supports");
+  const gear = optionsForGroup(data.filters, "gear");
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardDescription>Selected league</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-4 w-4" aria-hidden="true" />
+            Class distribution
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {data.league.statistics.length ? (
+            data.league.statistics
+              .slice(0, 7)
+              .map((stat) => (
+                <DistributionBar
+                  key={stat.className}
+                  label={stat.className}
+                  value={`${stat.percentage.toFixed(2)}%`}
+                  width={stat.percentage}
+                />
+              ))
+          ) : (
+            <p className="text-sm text-muted-foreground">Class distribution is unavailable.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardDescription>Current result set</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Sword className="h-4 w-4" aria-hidden="true" />
+            Top skills
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SummaryList emptyLabel="No skill summary returned." options={skills} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardDescription>Current result set</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Gem className="h-4 w-4" aria-hidden="true" />
+            Top supports
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SummaryList emptyLabel="No support summary returned." options={supports} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardDescription>Current result set</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <PackageSearch className="h-4 w-4" aria-hidden="true" />
+            Top gear
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SummaryList emptyLabel="No gear summary returned." options={gear} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function SummaryList({
+  emptyLabel,
+  options
+}: {
+  emptyLabel: string;
+  options: BuildFilterGroup["options"];
+}) {
+  const maxCount = Math.max(...options.map((option) => option.count), 0);
+
+  if (!options.length) {
+    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {options.slice(0, 6).map((option) => (
+        <DistributionBar
+          key={option.value}
+          label={option.label}
+          value={formatCompact(option.count)}
+          width={maxCount ? (option.count / maxCount) * 100 : 0}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DistributionBar({ label, value, width }: { label: string; value: string; width: number }) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="min-w-0 truncate">{label}</span>
+        <span className="shrink-0 text-muted-foreground">{value}</span>
+      </div>
+      <div className="h-2 bg-muted">
+        <div className="h-full bg-primary" style={{ width: `${Math.min(width, 100)}%` }} />
+      </div>
     </div>
   );
 }
@@ -791,6 +910,10 @@ function filterParamKey(groupId: BuildFilterGroup["id"]) {
   return groupId === "class" ? "class" : groupId;
 }
 
+function optionsForGroup(filters: BuildFilterGroup[], groupId: BuildFilterGroup["id"]) {
+  return filters.find((group) => group.id === groupId)?.options ?? [];
+}
+
 function splitParam(value: string | null) {
   return (
     value
@@ -822,6 +945,32 @@ function formatCompact(value: number) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
     value
   );
+}
+
+function formatRelativeTime(value: string) {
+  const timestamp = new Date(value).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return "Unknown";
+  }
+
+  const elapsedMs = Date.now() - timestamp;
+  const elapsedMinutes = Math.max(0, Math.floor(elapsedMs / 60000));
+
+  if (elapsedMinutes < 1) {
+    return "Just now";
+  }
+
+  if (elapsedMinutes < 60) {
+    return `${elapsedMinutes}m ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 48) {
+    return `${elapsedHours}h ago`;
+  }
+
+  return new Date(value).toLocaleDateString();
 }
 
 function getAscendancyImageUrl(name: string) {

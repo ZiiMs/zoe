@@ -16,10 +16,11 @@ This phase turns the Next.js web app into a stronger build discovery surface for
   - Handle empty results, API fallback, loading, and refresh states without layout jumps.
   - Completion note: expanded the build explorer controls in `apps/web/app/builds-page.tsx` so league, account/character search, class, keystone, skill, support, gear, sort, and order all stay URL-backed. Added compact sort/order selects covering all supported sort fields, kept quick sort buttons in sync with the selected order, reset pagination when filters change, and replaced transition-only refresh state with explicit refreshing/API-fallback indicators plus a stable empty/results container. Validation: `bun run typecheck:web`, `bun run lint:web` (warnings only for existing `<img>` usage), and `bun run --filter @zoe/web test` (no web test files found, exits 0). No images were attached or analyzed for this task.
 
-- [ ] Improve the build table and high-signal summary panels:
+- [x] Improve the build table and high-signal summary panels:
   - Show rank, character, account, class or ascendancy, level, top DPS skill, defensive metrics, main skills, key gear, and source freshness where available.
   - Add class distribution, top skills, top supports, and top gear summaries if the API response already contains the data.
   - Reuse `@zoe/ui` primitives and existing formatting helpers before creating new UI code.
+  - Completion note: updated `apps/web/app/builds-page.tsx` to add a per-row freshness/source column using each build's `capturedAt` and `source`, while preserving the existing rank, character/account, class/ascendancy, level, top DPS, defenses, skills, and gear cells. Replaced the single class-distribution card with reusable summary panels for class distribution plus top skills, supports, and gear from the existing `BuildSearchResponse.filters` data, with fallback messages when summaries are absent. Validation: `bunx prettier --check apps/web/app/builds-page.tsx .maestro/playbooks/Initiation/Phase-04-Web-Build-Explorer.md`, `bun run typecheck:web`, `bun run lint:web` (passes with existing `<img>` warnings), `bun run --filter @zoe/web test` (no web test files found, exits 0), and `bun run build:web`. No images were attached or analyzed for this task.
 
 - [ ] Improve build detail pages:
   - Show skills, supports, items, defensive stats, metadata, and passive or heatmap-related data from the current API response.
