@@ -25,10 +25,15 @@ This phase prepares Zoe for sustained development and shareable builds. It tight
     - Re-ran `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run test`, and `bun run build`; all passed after formatting.
     - `bun run lint` still reports non-blocking `@next/next/no-img-element` warnings in existing web pages, but exits successfully with 0 errors.
 
-- [ ] Add structured architecture documentation for future agents:
+- [x] Add structured architecture documentation for future agents:
   - Create `docs/architecture/system-overview.md` with YAML front matter using `type: reference`, `title: Zoe System Overview`, current date, tags `[architecture, poe2, zoe]`, and wiki-links to related docs.
   - Create `docs/architecture/trade-flow.md` with front matter and wiki-links such as `[[Zoe-System-Overview]]`, covering item capture, parsing, stat mapping, API search, listing fetch, and overlay rendering.
   - Create `docs/architecture/build-intelligence-flow.md` with front matter and wiki-links such as `[[Zoe-System-Overview]]`, covering poe.ninja ingestion, normalization, summaries, heatmaps, API reads, and web rendering.
+  - Completed on 2026-06-18:
+    - Added `docs/architecture/system-overview.md` describing workspace boundaries, runtime data sources, UI surfaces, and reliability patterns.
+    - Added `docs/architecture/trade-flow.md` covering desktop item capture, domain parsing, stat mapping, API official-trade search, listing fetch, and overlay rendering.
+    - Added `docs/architecture/build-intelligence-flow.md` covering worker ingestion, normalization, summaries, heatmap aggregation, Postgres persistence, API reads, and web rendering.
+    - Verified Markdown formatting with `bunx prettier --check docs/architecture/system-overview.md docs/architecture/trade-flow.md docs/architecture/build-intelligence-flow.md`.
 
 - [ ] Add structured decision records for major tradeoffs:
   - Create `docs/decisions/adr-001-fixture-first-development.md` with YAML front matter using `type: analysis`, `title: Fixture First Development`, tags `[adr, testing, reliability]`, and related wiki-links.
