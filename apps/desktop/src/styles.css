@@ -24,7 +24,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -126,6 +127,7 @@ input {
 
 .draggable-header button,
 .draggable-header input,
+.draggable-header select,
 .draggable-header a {
   cursor: auto;
 }
@@ -230,6 +232,7 @@ h1 {
 }
 
 .settings-grid input,
+.settings-grid select,
 .value-input input {
   width: 100%;
   border: 1px solid rgba(210, 220, 232, 0.16);
@@ -239,9 +242,19 @@ h1 {
   outline: none;
 }
 
-.settings-grid input {
+.settings-grid input,
+.settings-grid select {
   height: 34px;
   padding: 0 10px;
+}
+
+.settings-grid select {
+  cursor: pointer;
+}
+
+.settings-grid select:disabled {
+  color: #99a7b5;
+  cursor: default;
 }
 
 .settings-grid p {
