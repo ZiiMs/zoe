@@ -13,6 +13,8 @@ const poe2Realm = "poe2";
 const statCacheTtlMs = 60 * 60 * 1000;
 const leagueCacheTtlMs = 15 * 60 * 1000;
 const tradeFetchBatchSize = 10;
+const upstreamErrorBodyLimit = 500;
+const tradeDebugEnabled = process.env.ZOE_TRADE_DEBUG === "1";
 
 interface CacheEntry<T> {
   value: T;
@@ -33,7 +35,7 @@ export async function fetchTradeStats(
 
   const response = await fetcher(`${tradeBaseUrl}/api/trade2/data/stats`);
   if (!response.ok) {
-    throw new Error(`Trade stats request failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Trade stats request failed: ${statusMessage(response)}`);
   }
 
   const payload = (await response.json()) as { result?: unknown[] };
@@ -52,7 +54,7 @@ export async function fetchTradeLeagues(
 
   const response = await fetcher(`${tradeBaseUrl}/api/trade2/data/leagues`);
   if (!response.ok) {
-    throw new Error(`Trade leagues request failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Trade leagues request failed: ${statusMessage(response)}`);
   }
 
   const payload = (await response.json()) as { result?: unknown[] };
@@ -71,10 +73,10 @@ export async function priceCheckTradeItem(
   const statGroups = await fetchTradeStats(fetcher, now);
   const filters = resolveTradeFilters(request.filters, statGroups);
   const query = buildOfficialTradeSearch(request, filters);
-  console.info(
+  logTradeDebug(
     `[trade-debug] search league=${request.league} item="${request.item.baseType ?? request.item.name ?? "unknown"}" requestedFilters=${request.filters.length} resolvedFilters=${filters.length} limit=${request.limit ?? 10}`
   );
-  console.info(
+  logTradeDebug(
     `[trade-debug] filters ${filters
       .map(
         (filter) =>
@@ -96,7 +98,7 @@ export async function priceCheckTradeItem(
 
   if (!searchResponse.ok) {
     throw new Error(
-      `Trade search failed: ${searchResponse.status} ${searchResponse.statusText} ${await safeResponseText(searchResponse)}`.trim()
+      `Trade search failed: ${statusMessage(searchResponse)} ${await safeResponseText(searchResponse)}`.trim()
     );
   }
 
@@ -111,7 +113,7 @@ export async function priceCheckTradeItem(
   }
   const resultIds = searchPayload.result?.slice(0, request.limit ?? 10) ?? [];
   const tradeUrl = buildTradeUrl(request.league, searchPayload.id);
-  console.info(
+  logTradeDebug(
     `[trade-debug] searchResult query=${searchPayload.id ?? "none"} total=${searchPayload.total ?? 0} ids=${resultIds.length}`
   );
 
@@ -129,7 +131,9 @@ export async function priceCheckTradeItem(
 
   const listings: TradeListing[] = [];
   for (const batchIds of chunk(resultIds, tradeFetchBatchSize)) {
-    console.info(`[trade-debug] fetchBatch size=${batchIds.length} first=${batchIds[0] ?? "none"}`);
+    logTradeDebug(
+      `[trade-debug] fetchBatch size=${batchIds.length} first=${batchIds[0] ?? "none"}`
+    );
     const fetchUrl = `${tradeBaseUrl}/api/trade2/fetch/${batchIds.join(",")}?query=${encodeURIComponent(searchPayload.id)}&realm=${poe2Realm}`;
     const fetchResponse = await fetcher(fetchUrl, {
       headers: {
@@ -139,7 +143,7 @@ export async function priceCheckTradeItem(
 
     if (!fetchResponse.ok) {
       throw new Error(
-        `Trade fetch failed: ${fetchResponse.status} ${fetchResponse.statusText} ${await safeResponseText(fetchResponse)}`.trim()
+        `Trade fetch failed: ${statusMessage(fetchResponse)} ${await safeResponseText(fetchResponse)}`.trim()
       );
     }
 
@@ -153,7 +157,7 @@ export async function priceCheckTradeItem(
 
     listings.push(...normalizeTradeListings(fetchPayload.result, tradeUrl));
   }
-  console.info(`[trade-debug] fetchedListings=${listings.length}`);
+  logTradeDebug(`[trade-debug] fetchedListings=${listings.length}`);
 
   return {
     queryId: searchPayload.id,
@@ -351,9 +355,22 @@ function chunk<T>(items: T[], size: number) {
 
 async function safeResponseText(response: Response) {
   try {
-    return await response.text();
+    const text = await response.text();
+    return text.length > upstreamErrorBodyLimit
+      ? `${text.slice(0, upstreamErrorBodyLimit)}...`
+      : text;
   } catch {
     return "";
+  }
+}
+
+function statusMessage(response: Response) {
+  return `${response.status} ${response.statusText}`.trim();
+}
+
+function logTradeDebug(message: string) {
+  if (tradeDebugEnabled) {
+    console.info(message);
   }
 }
 

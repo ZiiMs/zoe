@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildTradePriceCheckRequest, parseTradeItemText } from "@zoe/domain";
 import { createServer } from "./server";
 import { __poeNinjaInternals, decodeSearchResult } from "./poe-ninja";
@@ -11,6 +11,38 @@ describe("api server", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ ok: true });
+  });
+
+  it("handles CORS preflight requests for the local web app", async () => {
+    const server = createServer();
+    const response = await server.inject({
+      method: "OPTIONS",
+      url: "/trade/price-check",
+      headers: {
+        origin: "http://localhost:3000",
+        "access-control-request-method": "POST"
+      }
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+    expect(response.headers["access-control-allow-methods"]).toBe("GET, POST, OPTIONS");
+    expect(response.headers["access-control-allow-headers"]).toBe("Content-Type, Accept");
+  });
+
+  it("handles CORS preflight requests for the desktop renderer", async () => {
+    const server = createServer();
+    const response = await server.inject({
+      method: "OPTIONS",
+      url: "/trade/price-check",
+      headers: {
+        origin: "http://localhost:1420",
+        "access-control-request-method": "POST"
+      }
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:1420");
   });
 
   it("returns fixture builds", async () => {
@@ -254,8 +286,38 @@ describe("api server", () => {
     expect(statsCalls).toBe(1);
   });
 
+  it("formats trade stats upstream failures", async () => {
+    __tradeInternals.resetCaches();
+    const server = createServer({
+      fetcher: async () => new Response("temporarily unavailable", { status: 503 })
+    });
+
+    const response = await server.inject({ method: "GET", url: "/trade/stats" });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({
+      error: "Trade stats request failed: 503"
+    });
+  });
+
+  it("formats trade leagues upstream failures", async () => {
+    __tradeInternals.resetCaches();
+    const server = createServer({
+      fetcher: async () =>
+        new Response("rate limited", { status: 429, statusText: "Too Many Requests" })
+    });
+
+    const response = await server.inject({ method: "GET", url: "/trade/leagues" });
+
+    expect(response.statusCode).toBe(429);
+    expect(response.json()).toEqual({
+      error: "Trade leagues request failed: 429 Too Many Requests"
+    });
+  });
+
   it("price checks an item through trade search and fetch", async () => {
     __tradeInternals.resetCaches();
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const requestedUrls: string[] = [];
     const server = createServer({
       fetcher: async (input) => {
@@ -344,6 +406,8 @@ describe("api server", () => {
     expect(payload.result.total).toBe(1);
     expect(payload.result.listings[0]).toMatchObject({ priceAmount: 3, seller: "seller" });
     expect(requestedUrls.some((url) => url.includes("/api/trade2/search/Standard"))).toBe(true);
+    expect(infoSpy).not.toHaveBeenCalled();
+    infoSpy.mockRestore();
   });
 
   it("smokes the parsed rare item price-check path with mocked trade responses", async () => {
@@ -599,5 +663,42 @@ Item Level: 80
 
     expect(response.statusCode).toBe(429);
     expect(response.json<{ error: string }>().error).toContain("Trade search failed");
+  });
+
+  it("truncates large upstream trade error bodies", async () => {
+    __tradeInternals.resetCaches();
+    const server = createServer({
+      fetcher: async (input) => {
+        if (String(input).includes("/api/trade2/data/stats")) {
+          return new Response(JSON.stringify({ result: [] }));
+        }
+
+        return new Response("x".repeat(1_000), { status: 503 });
+      }
+    });
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/trade/price-check",
+      payload: {
+        league: "Standard",
+        item: {
+          rawText: "item",
+          requirements: [],
+          sockets: [],
+          modifiers: [],
+          statCandidates: [],
+          pseudoSuggestions: [],
+          parseWarnings: []
+        },
+        filters: []
+      }
+    });
+
+    const error = response.json<{ error: string }>().error;
+    expect(response.statusCode).toBe(503);
+    expect(error).toContain("Trade search failed");
+    expect(error.length).toBeLessThan(600);
+    expect(error).toContain("...");
   });
 });

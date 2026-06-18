@@ -20,10 +20,16 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - `packages/config/src/index.ts` validates `DATABASE_URL`, `API_HOST`, `API_PORT`, and `POE_NINJA_BASE_URL`; the current poe.ninja adapter uses hardcoded upstream URLs rather than this config value.
     - Current tests in `apps/api/src/server.test.ts` cover health, fixture build fallback, build query parsing, fixture detail fallback, summaries/heatmaps, normalized build index, league metadata, protobuf decode, trade stats caching, price-check search/fetch, batched fetches, and trade search failure. Remaining gaps align with later tasks: explicit CORS/OPTIONS behavior, malformed upstream JSON fallback, unknown build IDs, trade league caching, trade stats/league upstream error shape, fetch failure, zero listings, unmapped filters, and explicit online-only false behavior.
 
-- [ ] Standardize API error responses and logging:
+- [x] Standardize API error responses and logging:
   - Ensure upstream failures return useful status codes and `{ error: string }` bodies without leaking huge response payloads.
   - Keep request logging enabled for local debugging, but avoid noisy repeated logs for successful hot paths.
   - Make CORS behavior explicit for local web and desktop renderer use.
+  - Notes:
+    - Added a Fastify error handler in `apps/api/src/server.ts` so unhandled API route failures return `{ error: string }` with propagated upstream HTTP status codes where available.
+    - Made CORS origin handling explicit for local web (`localhost`/`127.0.0.1:3000`) and desktop renderer (`localhost`/`127.0.0.1:1420`, Tauri origins) while preserving wildcard behavior for non-browser requests.
+    - Gated successful trade hot-path debug logs behind `ZOE_TRADE_DEBUG=1` and truncated upstream error body snippets to 500 characters in `apps/api/src/trade.ts`.
+    - Added tests for local web and desktop CORS preflights, trade stats/leagues error responses, quiet successful price checks, and truncated upstream trade errors.
+    - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
 - [ ] Harden poe.ninja build routes:
   - Confirm `/poe-ninja/build-index`, `/poe-ninja/leagues`, `/builds`, and `/builds/:id` normalize upstream responses and fall back to fixtures where appropriate.

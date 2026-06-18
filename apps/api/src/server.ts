@@ -18,19 +18,34 @@ interface CreateServerOptions {
   fetcher?: typeof fetch;
 }
 
+const allowedCorsOrigins = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:1420",
+  "http://127.0.0.1:1420",
+  "http://tauri.localhost",
+  "tauri://localhost"
+] as const;
+
 export function createServer({ fetcher = fetch }: CreateServerOptions = {}) {
   const server = Fastify({
     logger: true
   });
 
   server.addHook("onRequest", async (request, reply) => {
-    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Origin", corsOriginFor(request.headers.origin));
     reply.header("Access-Control-Allow-Headers", "Content-Type, Accept");
     reply.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    reply.header("Vary", "Origin");
 
     if (request.method === "OPTIONS") {
       return reply.code(204).send();
     }
+  });
+
+  server.setErrorHandler((error, request, reply) => {
+    request.log.error(error);
+    return reply.code(statusCodeFromError(error)).send({ error: messageFromError(error) });
   });
 
   server.get("/health", async () => ({ ok: true as const }));
@@ -86,24 +101,53 @@ export function createServer({ fetcher = fetch }: CreateServerOptions = {}) {
       };
     } catch (error) {
       request.log.error(error);
-      return reply
-        .code(statusCodeFromError(error))
-        .send({ error: error instanceof Error ? error.message : String(error) });
+      return reply.code(statusCodeFromError(error)).send({ error: messageFromError(error) });
     }
   });
 
   return server;
 }
 
+function corsOriginFor(origin?: string) {
+  if (!origin) {
+    return "*";
+  }
+
+  return allowedCorsOrigins.includes(origin as (typeof allowedCorsOrigins)[number])
+    ? origin
+    : "null";
+}
+
 function statusCodeFromError(error: unknown) {
+  if (typeof error === "object" && error && "statusCode" in error) {
+    const statusCode = Number((error as { statusCode?: unknown }).statusCode);
+    if (statusCode >= 400 && statusCode < 600) {
+      return statusCode;
+    }
+  }
+
+  if (error instanceof SyntaxError) {
+    return 502;
+  }
+
   const message = error instanceof Error ? error.message : String(error);
-  const match = message.match(/^Trade (?:search|fetch) failed: (\d{3})\b/);
+  const match = message.match(
+    /^Trade (?:stats request|leagues request|search|fetch) failed: (\d{3})\b/
+  );
   if (!match) {
     return 500;
   }
 
   const statusCode = Number(match[1]);
   return statusCode >= 400 && statusCode < 600 ? statusCode : 500;
+}
+
+function messageFromError(error: unknown) {
+  if (error instanceof SyntaxError) {
+    return "Upstream returned malformed JSON.";
+  }
+
+  return error instanceof Error ? error.message : String(error);
 }
 
 function parseBuildSearchParams(
