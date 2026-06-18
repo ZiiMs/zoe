@@ -143,7 +143,7 @@ export interface BuildSearchResponse {
     order: SortOrder;
   };
   fetchedAt: string;
-  source: "poe.ninja" | "fixture";
+  source: "poe.ninja" | "fixture" | "database";
 }
 
 export interface BuildDetailGem {
@@ -238,5 +238,5 @@ export interface BuildDetail {
   };
   updatedAt?: string | undefined;
   lastSeenAt?: string | undefined;
-  source: "poe.ninja" | "fixture";
+  source: "poe.ninja" | "fixture" | "database";
 }

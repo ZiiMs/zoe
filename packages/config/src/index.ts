@@ -1,12 +1,19 @@
 import { z } from "zod";
 
-const httpUrlSchema = z.string().url().refine((value) => {
-  const protocol = new URL(value).protocol;
-  return protocol === "http:" || protocol === "https:";
-}, "Expected an HTTP(S) URL");
+const httpUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  }, "Expected an HTTP(S) URL");
 
 export const serverEnvSchema = z.object({
   DATABASE_URL: z.string().url().default("postgres://zoe:zoe@localhost:5432/zoe"),
+  ZOE_API_PERSISTED_READS: z
+    .enum(["0", "1", "false", "true"])
+    .default("0")
+    .transform((value) => value === "1" || value === "true"),
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().positive().default(4000),
   POE_NINJA_BASE_URL: httpUrlSchema.default("https://poe.ninja/poe2/api/data")

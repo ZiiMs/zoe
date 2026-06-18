@@ -35,9 +35,10 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - Mock upstream poe.ninja calls and database calls.
   - Completion note: added optional source/timestamp injection points to `apps/worker/src/jobs.ts` so worker jobs remain fixture-first by default while tests can use mocked poe.ninja payloads and fixed generated timestamps. Expanded `apps/worker/src/jobs.test.ts` to cover deterministic fixture ingestion, mocked upstream normalization, summary generation, passive heatmap aggregation, and mocked persistence query calls. Existing `apps/worker/src/cli-runner.test.ts` continues to cover unknown CLI command behavior and job failure exits. Verified `bun run test:worker`, `bun run --filter @zoe/worker typecheck`, `bun run build:worker`, `bun run test`, and `bun run typecheck`.
 
-- [ ] Connect API reads to persisted data only when safe:
+- [x] Connect API reads to persisted data only when safe:
   - If the database layer is ready and optional, allow API routes to prefer persisted builds/summaries/heatmaps while falling back to fixtures or live upstream.
   - If persistence is not ready by the end of this phase, leave API behavior unchanged and report the exact remaining boundary.
+  - Completion note: added optional `@zoe/db` read helpers for build snapshots, build details, summaries, and heatmap aggregates, then wired `apps/api` to prefer those rows only when a database query client is explicitly provided. Startup keeps persisted reads disabled by default behind `ZOE_API_PERSISTED_READS=1`, so missing Postgres still falls back to live poe.ninja or fixtures. Updated web build source labels for the new `database` source. Added mocked coverage for persisted API reads, fallback-on-db-failure, db read helpers, and env opt-in behavior. Verified `bun run test:api`, `bun run --filter @zoe/db test`, `bun run --filter @zoe/config test`, `bun run --filter @zoe/web test`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/config typecheck`, `bun run --filter @zoe/api typecheck`, `bun run --filter @zoe/web typecheck`, and `bun run build:api`.
 
 - [ ] Run worker and persistence validation and fix failures:
   - `bun run test:worker`

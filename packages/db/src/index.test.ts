@@ -2,6 +2,10 @@ import type { BuildSnapshot, BuildSummary, HeatmapAggregate } from "@zoe/domain"
 import { describe, expect, it, vi } from "vitest";
 import {
   checkDatabase,
+  readBuildSnapshot,
+  readBuildSnapshots,
+  readBuildSummaries,
+  readHeatmapAggregate,
   storeBuildIntelligence,
   storeBuildSnapshot,
   storeBuildSummary,
@@ -16,9 +20,24 @@ function createMockClient() {
       command: "",
       oid: 0,
       fields: []
-    }))
+    })) as DbQueryMock
   };
 }
+
+type DbQueryMock = ReturnType<
+  typeof vi.fn<
+    (
+      text: string,
+      values?: unknown[]
+    ) => Promise<{
+      rows: unknown[];
+      rowCount: number;
+      command: string;
+      oid: number;
+      fields: [];
+    }>
+  >
+>;
 
 const build: BuildSnapshot = {
   metadata: {
@@ -165,5 +184,80 @@ describe("database persistence helpers", () => {
     });
 
     expect(client.query).toHaveBeenCalledTimes(4);
+  });
+
+  it("reads persisted build snapshots from JSONB payloads", async () => {
+    const client = createMockClient();
+    client.query.mockResolvedValueOnce({
+      rows: [{ payload: JSON.stringify(build) }],
+      rowCount: 1,
+      command: "",
+      oid: 0,
+      fields: []
+    });
+
+    await expect(
+      readBuildSnapshots(client, {
+        league: "Dawn of the Hunt",
+        search: "Grenade",
+        className: ["Witchhunter"],
+        limit: 10
+      })
+    ).resolves.toEqual([build]);
+
+    const queryText = client.query.mock.calls[0]?.[0];
+    const values = client.query.mock.calls[0]?.[1];
+    expect(queryText).toContain("league = $1");
+    expect(queryText).toContain("character_name ilike $2");
+    expect(queryText).toContain("ascendancy_name = any($3::text[])");
+    expect(values).toEqual(["Dawn of the Hunt", "%Grenade%", ["Witchhunter"], 10]);
+  });
+
+  it("reads persisted build detail by id or web route id", async () => {
+    const client = createMockClient();
+    client.query.mockResolvedValueOnce({
+      rows: [{ payload: build }],
+      rowCount: 1,
+      command: "",
+      oid: 0,
+      fields: []
+    });
+
+    await expect(readBuildSnapshot(client, "Dawn of the Hunt:zoe:GrenadeMap")).resolves.toEqual(
+      build
+    );
+    expect(client.query.mock.calls[0]?.[1]).toEqual(["Dawn of the Hunt:zoe:GrenadeMap"]);
+  });
+
+  it("reads summaries and heatmap aggregates from persisted rows", async () => {
+    const client = createMockClient();
+    client.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: summary.id,
+            build_id: summary.buildId,
+            title: summary.title,
+            primary_skill: summary.primarySkill,
+            highlights: summary.highlights,
+            defensive_layers: summary.defensiveLayers,
+            generated_at: new Date(summary.generatedAt)
+          }
+        ],
+        rowCount: 1,
+        command: "",
+        oid: 0,
+        fields: []
+      })
+      .mockResolvedValueOnce({
+        rows: [{ payload: heatmap }],
+        rowCount: 1,
+        command: "",
+        oid: 0,
+        fields: []
+      });
+
+    await expect(readBuildSummaries(client)).resolves.toEqual([summary]);
+    await expect(readHeatmapAggregate(client, "passives")).resolves.toEqual(heatmap);
   });
 });

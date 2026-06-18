@@ -5,10 +5,18 @@ describe("environment validation", () => {
   it("provides fixture-friendly server defaults", () => {
     expect(readServerEnv({})).toEqual({
       DATABASE_URL: "postgres://zoe:zoe@localhost:5432/zoe",
+      ZOE_API_PERSISTED_READS: false,
       API_HOST: "0.0.0.0",
       API_PORT: 4000,
       POE_NINJA_BASE_URL: "https://poe.ninja/poe2/api/data"
     });
+  });
+
+  it("keeps API persisted reads behind an explicit opt-in", () => {
+    expect(readServerEnv({ ZOE_API_PERSISTED_READS: "1" }).ZOE_API_PERSISTED_READS).toBe(true);
+    expect(readServerEnv({ ZOE_API_PERSISTED_READS: "true" }).ZOE_API_PERSISTED_READS).toBe(true);
+    expect(readServerEnv({ ZOE_API_PERSISTED_READS: "0" }).ZOE_API_PERSISTED_READS).toBe(false);
+    expect(() => readServerEnv({ ZOE_API_PERSISTED_READS: "yes" })).toThrow();
   });
 
   it("coerces valid API ports and rejects invalid ports", () => {
@@ -21,12 +29,10 @@ describe("environment validation", () => {
     expect(readDesktopEnv({}).VITE_ZOE_API_BASE_URL).toBe("http://localhost:4000");
 
     expect(
-      readWebEnv({ NEXT_PUBLIC_API_BASE_URL: "https://api.example.test" })
-        .NEXT_PUBLIC_API_BASE_URL
+      readWebEnv({ NEXT_PUBLIC_API_BASE_URL: "https://api.example.test" }).NEXT_PUBLIC_API_BASE_URL
     ).toBe("https://api.example.test");
     expect(
-      readDesktopEnv({ VITE_ZOE_API_BASE_URL: "https://api.example.test" })
-        .VITE_ZOE_API_BASE_URL
+      readDesktopEnv({ VITE_ZOE_API_BASE_URL: "https://api.example.test" }).VITE_ZOE_API_BASE_URL
     ).toBe("https://api.example.test");
 
     expect(() => readWebEnv({ NEXT_PUBLIC_API_BASE_URL: "localhost:4000" })).toThrow();

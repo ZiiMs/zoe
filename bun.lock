@@ -23,6 +23,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@zoe/config": "workspace:*",
+        "@zoe/db": "workspace:*",
         "@zoe/domain": "workspace:*",
         "fastify": "^5.3.3",
         "protobufjs": "^8.6.0",

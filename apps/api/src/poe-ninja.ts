@@ -21,7 +21,8 @@ import type {
 import { fixtureBuilds, fixturePoeNinjaBuildIndex } from "./fixtures";
 
 const defaultPoeNinjaBaseUrl = "https://poe.ninja/poe2/api/data";
-const passiveTreeExportUrl = "https://raw.githubusercontent.com/grindinggear/poe2-skilltree-export/main/data.json";
+const passiveTreeExportUrl =
+  "https://raw.githubusercontent.com/grindinggear/poe2-skilltree-export/main/data.json";
 const defaultLeagueUrl = "runesofaldur";
 const optionLimit = 300;
 let passiveTreeCache: PassiveTreeExport | undefined;
@@ -84,7 +85,13 @@ interface SearchResultDimension {
 
 interface SearchResultValueList {
   id?: string;
-  values?: Array<{ str?: string; number?: number; numbers?: number[]; strs?: string[]; boolean?: boolean }>;
+  values?: Array<{
+    str?: string;
+    number?: number;
+    numbers?: number[];
+    strs?: string[];
+    boolean?: boolean;
+  }>;
 }
 
 interface SearchResultDictionaryReference {
@@ -265,10 +272,22 @@ export async function fetchPoeNinjaLeagues(
       fetchIndexState(fetcher, options),
       fetchPoeNinjaBuildIndex(fetcher, options)
     ]);
-    const leagueBuildsByUrl = new Map(buildIndex.leagueBuilds.map((league) => [league.leagueUrl, league]));
-    const snapshotsByUrl = new Map((indexState.snapshotVersions ?? []).map((snapshot) => [snapshot.url, snapshot]));
-    const current = normalizeIndexStateLeagues(indexState.buildLeagues ?? [], leagueBuildsByUrl, snapshotsByUrl);
-    const old = normalizeIndexStateLeagues(indexState.oldBuildLeagues ?? [], leagueBuildsByUrl, snapshotsByUrl);
+    const leagueBuildsByUrl = new Map(
+      buildIndex.leagueBuilds.map((league) => [league.leagueUrl, league])
+    );
+    const snapshotsByUrl = new Map(
+      (indexState.snapshotVersions ?? []).map((snapshot) => [snapshot.url, snapshot])
+    );
+    const current = normalizeIndexStateLeagues(
+      indexState.buildLeagues ?? [],
+      leagueBuildsByUrl,
+      snapshotsByUrl
+    );
+    const old = normalizeIndexStateLeagues(
+      indexState.oldBuildLeagues ?? [],
+      leagueBuildsByUrl,
+      snapshotsByUrl
+    );
     const leagues = [...current, ...old].filter((league) => league.version && league.snapshotName);
 
     return leagues.length > 0 ? leagues : fixtureLeagues();
@@ -325,7 +344,7 @@ export async function fetchPoeNinjaBuildDetail(
 
   if (!parsed) {
     const fixture = findFixtureBuildDetail(id);
-    return fixture ? fixtureBuildDetail(fixture) : undefined;
+    return fixture ? buildDetailFromSnapshot(fixture, "fixture") : undefined;
   }
 
   const urls = createPoeNinjaUrls(options);
@@ -349,7 +368,7 @@ export async function fetchPoeNinjaBuildDetail(
     return normalizeCharacterDetail(await response.json(), parsed, league, fetcher);
   } catch {
     const fixture = findFixtureBuildDetail(id, parsed);
-    return fixture ? fixtureBuildDetail(fixture) : undefined;
+    return fixture ? buildDetailFromSnapshot(fixture, "fixture") : undefined;
   }
 }
 
@@ -383,7 +402,9 @@ function getProtoRoot() {
 
 function createPoeNinjaUrls(options: PoeNinjaOptions) {
   const dataBaseUrl = (options.baseUrl ?? defaultPoeNinjaBaseUrl).replace(/\/+$/, "");
-  const apiBaseUrl = dataBaseUrl.endsWith("/data") ? dataBaseUrl.slice(0, -"/data".length) : dataBaseUrl;
+  const apiBaseUrl = dataBaseUrl.endsWith("/data")
+    ? dataBaseUrl.slice(0, -"/data".length)
+    : dataBaseUrl;
 
   return {
     indexStateUrl: `${dataBaseUrl}/index-state`,
@@ -489,7 +510,9 @@ async function fetchDictionaries(
         return;
       }
 
-      const response = await fetcher(`${urls.buildsBaseUrl}/dictionary/${encodeURIComponent(reference.hash)}`);
+      const response = await fetcher(
+        `${urls.buildsBaseUrl}/dictionary/${encodeURIComponent(reference.hash)}`
+      );
       if (!response.ok) {
         throw new Error(`poe.ninja dictionary returned ${response.status}`);
       }
@@ -510,7 +533,9 @@ function normalizeBuildRows(
   capturedAt: string,
   order: SortOrder
 ) {
-  const valueLists = new Map((result.valueLists ?? []).map((list) => [list.id ?? "", list.values ?? []]));
+  const valueLists = new Map(
+    (result.valueLists ?? []).map((list) => [list.id ?? "", list.values ?? []])
+  );
   const names = valueLists.get("name") ?? [];
   const accounts = valueLists.get("account") ?? [];
   const classes = valueLists.get("class") ?? [];
@@ -534,7 +559,11 @@ function normalizeBuildRows(
     const ascendancyName = lookupDictionary(classDictionary, valueNumber(classes[index]));
     const mainSkills = lookupMany(gemDictionary, skills[index]?.numbers).slice(0, 4);
     const highestDpsSkill = lookupDictionary(gemDictionary, valueNumber(dps[index]));
-    const highestDpsSkillIconUrl = lookupDictionaryProperty(gemDictionary, "icon", valueNumber(dps[index]));
+    const highestDpsSkillIconUrl = lookupDictionaryProperty(
+      gemDictionary,
+      "icon",
+      valueNumber(dps[index])
+    );
     const passives = lookupMany(passiveDictionary, keyPassives[index]?.numbers).slice(0, 4);
     const gear = lookupMany(itemDictionary, items[index]?.numbers).slice(0, 3);
     const metrics = createBuildMetrics({
@@ -542,22 +571,24 @@ function normalizeBuildRows(
       ...(highestDpsSkillIconUrl ? { highestDpsSkillIconUrl } : {}),
       ...(dps[index]?.str ? { dpsLabel: dps[index]?.str } : {}),
       ...(life[index]?.number !== undefined ? { life: life[index]?.number } : {}),
-      ...(energyShield[index]?.number !== undefined ? { energyShield: energyShield[index]?.number } : {}),
+      ...(energyShield[index]?.number !== undefined
+        ? { energyShield: energyShield[index]?.number }
+        : {}),
       ...(ehp[index]?.str ? { ehpLabel: ehp[index]?.str } : {})
     });
 
     const payload = {
-        id: `poe-ninja:${league.url}:${accountName}:${characterName}`,
-        accountName,
-        characterName,
-        className: ascendancyName ?? "Unknown",
-        level: levels[index]?.number ?? 0,
-        league: league.displayName,
-        skills: mainSkills.map((name) => ({ name, usageCount: 1 })),
-        items: gear.map((name, gearIndex) => ({ slot: `item-${gearIndex + 1}`, name })),
-        passives: passives.map((name) => ({ id: slugify(name), name, count: 1 })),
-        ...(metrics ? { metrics } : {})
-      };
+      id: `poe-ninja:${league.url}:${accountName}:${characterName}`,
+      accountName,
+      characterName,
+      className: ascendancyName ?? "Unknown",
+      level: levels[index]?.number ?? 0,
+      league: league.displayName,
+      skills: mainSkills.map((name) => ({ name, usageCount: 1 })),
+      items: gear.map((name, gearIndex) => ({ slot: `item-${gearIndex + 1}`, name })),
+      passives: passives.map((name) => ({ id: slugify(name), name, count: 1 })),
+      ...(metrics ? { metrics } : {})
+    };
 
     return normalizePoeNinjaBuild(
       {
@@ -580,7 +611,9 @@ function createBuildMetrics(metrics: {
 }) {
   const normalized = {
     ...(metrics.highestDpsSkill ? { highestDpsSkill: metrics.highestDpsSkill } : {}),
-    ...(metrics.highestDpsSkillIconUrl ? { highestDpsSkillIconUrl: metrics.highestDpsSkillIconUrl } : {}),
+    ...(metrics.highestDpsSkillIconUrl
+      ? { highestDpsSkillIconUrl: metrics.highestDpsSkillIconUrl }
+      : {}),
     ...(metrics.dpsLabel ? { dpsLabel: metrics.dpsLabel } : {}),
     ...(metrics.life !== undefined ? { life: metrics.life } : {}),
     ...(metrics.energyShield !== undefined ? { energyShield: metrics.energyShield } : {}),
@@ -595,14 +628,46 @@ function normalizeFilters(
   dictionaries: Map<string, SearchResultDictionary>,
   params: BuildSearchParams
 ): BuildFilterGroup[] {
-  const dimensions = new Map((result.dimensions ?? []).map((dimension) => [dimension.id ?? "", dimension]));
+  const dimensions = new Map(
+    (result.dimensions ?? []).map((dimension) => [dimension.id ?? "", dimension])
+  );
 
   return [
-    createFilterGroup("class", "Ascendancy / class", dimensions.get("class"), dictionaries.get("class"), params.className),
-    createFilterGroup("keystones", "Keystones", dimensions.get("keypassives"), dictionaries.get("keypassive"), params.keystones),
-    createFilterGroup("skills", "Skills", dimensions.get("skills"), dictionaries.get("gem"), params.skills),
-    createFilterGroup("supports", "Supports", dimensions.get("allskills"), dictionaries.get("gem"), params.supports),
-    createFilterGroup("gear", "Gear", dimensions.get("items"), dictionaries.get("item"), params.gear)
+    createFilterGroup(
+      "class",
+      "Ascendancy / class",
+      dimensions.get("class"),
+      dictionaries.get("class"),
+      params.className
+    ),
+    createFilterGroup(
+      "keystones",
+      "Keystones",
+      dimensions.get("keypassives"),
+      dictionaries.get("keypassive"),
+      params.keystones
+    ),
+    createFilterGroup(
+      "skills",
+      "Skills",
+      dimensions.get("skills"),
+      dictionaries.get("gem"),
+      params.skills
+    ),
+    createFilterGroup(
+      "supports",
+      "Supports",
+      dimensions.get("allskills"),
+      dictionaries.get("gem"),
+      params.supports
+    ),
+    createFilterGroup(
+      "gear",
+      "Gear",
+      dimensions.get("items"),
+      dictionaries.get("item"),
+      params.gear
+    )
   ];
 }
 
@@ -694,7 +759,9 @@ function parsePoeNinjaBuildId(id: string) {
   };
 }
 
-async function fetchPassiveTreeExport(fetcher: typeof fetch): Promise<PassiveTreeExport | undefined> {
+async function fetchPassiveTreeExport(
+  fetcher: typeof fetch
+): Promise<PassiveTreeExport | undefined> {
   if (passiveTreeCache) {
     return passiveTreeCache;
   }
@@ -713,7 +780,10 @@ async function fetchPassiveTreeExport(fetcher: typeof fetch): Promise<PassiveTre
   }
 }
 
-async function normalizePassiveTree(payload: PoeNinjaCharacterDetailPayload, fetcher: typeof fetch): Promise<BuildPassiveTree | undefined> {
+async function normalizePassiveTree(
+  payload: PoeNinjaCharacterDetailPayload,
+  fetcher: typeof fetch
+): Promise<BuildPassiveTree | undefined> {
   const tree = await fetchPassiveTreeExport(fetcher);
 
   if (!tree) {
@@ -727,15 +797,15 @@ async function normalizePassiveTree(payload: PoeNinjaCharacterDetailPayload, fet
   ]);
   const set1 = new Set<number>(toNumberArray(payload.passiveSelectionSet1));
   const set2 = new Set<number>(toNumberArray(payload.passiveSelectionSet2));
-  const nodes: BuildPassiveTree["nodes"] = Object.values(tree.nodes ?? {})
-    .flatMap((node) => {
-      const id = numberOrUndefined(node.skill);
+  const nodes: BuildPassiveTree["nodes"] = Object.values(tree.nodes ?? {}).flatMap((node) => {
+    const id = numberOrUndefined(node.skill);
 
-      if (id === undefined || node.x === undefined || node.y === undefined) {
-        return [];
-      }
+    if (id === undefined || node.x === undefined || node.y === undefined) {
+      return [];
+    }
 
-      return [{
+    return [
+      {
         id,
         name: node.name ?? `Passive ${id}`,
         x: node.x,
@@ -747,15 +817,18 @@ async function normalizePassiveTree(payload: PoeNinjaCharacterDetailPayload, fet
         ...(node.isNotable ? { notable: true } : {}),
         ...(node.isKeystone ? { keystone: true } : {}),
         ...(node.ascendancyId ? { ascendancy: true } : {})
-      }];
-    });
+      }
+    ];
+  });
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = (tree.edges ?? [])
     .map((edge) => {
       const from = numberOrUndefined(edge.from);
       const to = numberOrUndefined(edge.to);
 
-      return from !== undefined && to !== undefined && nodeIds.has(from) && nodeIds.has(to) ? { from, to } : undefined;
+      return from !== undefined && to !== undefined && nodeIds.has(from) && nodeIds.has(to)
+        ? { from, to }
+        : undefined;
     })
     .filter((edge): edge is BuildPassiveTree["edges"][number] => Boolean(edge));
 
@@ -781,7 +854,9 @@ async function normalizeCharacterDetail(
   const capturedAt = new Date().toISOString();
   const skillGroups = normalizeSkillGroups(payload.skills ?? []);
   const highestSkill = skillGroups
-    .flatMap((group) => (group.dps ? [{ name: group.name, dps: group.dps, iconUrl: group.iconUrl }] : []))
+    .flatMap((group) =>
+      group.dps ? [{ name: group.name, dps: group.dps, iconUrl: group.iconUrl }] : []
+    )
     .sort((a, b) => b.dps - a.dps)[0];
   const items = normalizeDetailItems(payload.items ?? []);
   const passiveTree = await normalizePassiveTree(payload, fetcher);
@@ -807,10 +882,22 @@ async function normalizeCharacterDetail(
         count: 1
       })),
       metrics: {
-        ...(highestSkill ? { highestDpsSkill: highestSkill.name, highestDpsSkillIconUrl: highestSkill.iconUrl, dpsLabel: formatDps(highestSkill.dps) } : {}),
-        ...(payload.defensiveStats?.life !== undefined ? { life: payload.defensiveStats.life } : {}),
-        ...(payload.defensiveStats?.energyShield !== undefined ? { energyShield: payload.defensiveStats.energyShield } : {}),
-        ...(payload.defensiveStats?.effectiveHealthPool !== undefined ? { ehpLabel: formatDps(payload.defensiveStats.effectiveHealthPool) } : {})
+        ...(highestSkill
+          ? {
+              highestDpsSkill: highestSkill.name,
+              highestDpsSkillIconUrl: highestSkill.iconUrl,
+              dpsLabel: formatDps(highestSkill.dps)
+            }
+          : {}),
+        ...(payload.defensiveStats?.life !== undefined
+          ? { life: payload.defensiveStats.life }
+          : {}),
+        ...(payload.defensiveStats?.energyShield !== undefined
+          ? { energyShield: payload.defensiveStats.energyShield }
+          : {}),
+        ...(payload.defensiveStats?.effectiveHealthPool !== undefined
+          ? { ehpLabel: formatDps(payload.defensiveStats.effectiveHealthPool) }
+          : {})
       }
     },
     capturedAt
@@ -866,7 +953,11 @@ function normalizeDetailItems(items: PoeNinjaItemEntryPayload[]): BuildDetailIte
       rarity: item.frameTypeId,
       iconUrl: item.icon,
       implicitMods: item.implicitMods ?? [],
-      explicitMods: [...(item.explicitMods ?? []), ...(item.desecratedMods ?? []), ...(item.runeMods ?? [])].slice(0, 8)
+      explicitMods: [
+        ...(item.explicitMods ?? []),
+        ...(item.desecratedMods ?? []),
+        ...(item.runeMods ?? [])
+      ].slice(0, 8)
     };
   });
 }
@@ -896,15 +987,24 @@ function normalizeDefensiveStats(stats: PoeNinjaDefensiveStatsPayload) {
   };
 }
 
-function fixtureBuildDetail(build: BuildSnapshot): BuildDetail {
+export function buildDetailFromSnapshot(
+  build: BuildSnapshot,
+  source: BuildDetail["source"] = build.source === "fixture" ? "fixture" : "database"
+): BuildDetail {
   return {
     build,
-    poeNinjaUrl: "https://poe.ninja/poe2/builds",
+    poeNinjaUrl:
+      build.source === "poe.ninja"
+        ? `https://poe.ninja/poe2/builds/${encodeURIComponent(build.metadata.league)}`
+        : "https://poe.ninja/poe2/builds",
     defensiveStats: {
       life: build.metrics?.life,
       energyShield: build.metrics?.energyShield
     },
-    skillGroups: build.mainSkills.map((skill) => ({ name: skill.name, gems: [{ name: skill.name, support: false }] })),
+    skillGroups: build.mainSkills.map((skill) => ({
+      name: skill.name,
+      gems: [{ name: skill.name, support: false }]
+    })),
     items: build.items.map((item) => ({
       slot: item.slot,
       name: item.name,
@@ -915,9 +1015,12 @@ function fixtureBuildDetail(build: BuildSnapshot): BuildDetail {
     })),
     flasks: [],
     jewels: [],
-    keystones: build.passives.map((passive) => ({ name: passive.name ?? passive.passiveId, stats: [] })),
+    keystones: build.passives.map((passive) => ({
+      name: passive.name ?? passive.passiveId,
+      stats: []
+    })),
     passiveCounts: {},
-    source: "fixture"
+    source
   };
 }
 
@@ -935,7 +1038,9 @@ function findFixtureBuildDetail(
     return (
       metadata.accountName === parsed.account &&
       metadata.characterName === parsed.character &&
-      (metadata.league === parsed.league || metadata.id === id || slugify(metadata.league) === parsedLeague)
+      (metadata.league === parsed.league ||
+        metadata.id === id ||
+        slugify(metadata.league) === parsedLeague)
     );
   });
 }
@@ -945,7 +1050,9 @@ function formatDps(value?: number) {
     return undefined;
   }
 
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
+    value
+  );
 }
 
 function fixtureLeagues(): PoeNinjaLeagueOption[] {
@@ -977,16 +1084,28 @@ function fallbackLeague(): PoeNinjaLeagueOption {
 }
 
 function fixtureFilters(): BuildFilterGroup[] {
-  const classOptions = unique(fixtureBuilds.map((build) => build.metadata.ascendancyName ?? build.metadata.className));
-  const skills = unique(fixtureBuilds.flatMap((build) => build.mainSkills.map((skill) => skill.name)));
+  const classOptions = unique(
+    fixtureBuilds.map((build) => build.metadata.ascendancyName ?? build.metadata.className)
+  );
+  const skills = unique(
+    fixtureBuilds.flatMap((build) => build.mainSkills.map((skill) => skill.name))
+  );
   const gear = unique(fixtureBuilds.flatMap((build) => build.items.map((item) => item.name)));
-  const keystones = unique(fixtureBuilds.flatMap((build) => build.passives.map((passive) => passive.name ?? passive.passiveId)));
+  const keystones = unique(
+    fixtureBuilds.flatMap((build) =>
+      build.passives.map((passive) => passive.name ?? passive.passiveId)
+    )
+  );
 
   return [
     { id: "class", label: "Ascendancy / class", options: toFixtureOptions(classOptions) },
     { id: "keystones", label: "Keystones", options: toFixtureOptions(keystones) },
     { id: "skills", label: "Skills", options: toFixtureOptions(skills) },
-    { id: "supports", label: "Supports", options: toFixtureOptions(["Martial Tempo", "Concentrated Effect"]) },
+    {
+      id: "supports",
+      label: "Supports",
+      options: toFixtureOptions(["Martial Tempo", "Concentrated Effect"])
+    },
     { id: "gear", label: "Gear", options: toFixtureOptions(gear) }
   ];
 }
@@ -1020,7 +1139,9 @@ function addQueryValues(query: URLSearchParams, key: string, values?: string[]) 
 }
 
 function lookupMany(dictionary: SearchResultDictionary | undefined, keys?: number[]) {
-  return (keys ?? []).map((key) => lookupDictionary(dictionary, key)).filter((value): value is string => Boolean(value));
+  return (keys ?? [])
+    .map((key) => lookupDictionary(dictionary, key))
+    .filter((value): value is string => Boolean(value));
 }
 
 function valueNumber(value?: { number?: number }) {
@@ -1053,7 +1174,11 @@ function lookupDictionary(dictionary: SearchResultDictionary | undefined, key?: 
   return dictionary?.values?.[key];
 }
 
-function lookupDictionaryProperty(dictionary: SearchResultDictionary | undefined, propertyId: string, key?: number) {
+function lookupDictionaryProperty(
+  dictionary: SearchResultDictionary | undefined,
+  propertyId: string,
+  key?: number
+) {
   if (key === undefined) {
     return undefined;
   }
@@ -1062,7 +1187,9 @@ function lookupDictionaryProperty(dictionary: SearchResultDictionary | undefined
 }
 
 function normalizeSort(sort?: BuildSortField): BuildSortField {
-  return sort === "dps" || sort === "life" || sort === "energyshield" || sort === "ehp" ? sort : "level";
+  return sort === "dps" || sort === "life" || sort === "energyshield" || sort === "ehp"
+    ? sort
+    : "level";
 }
 
 function normalizeOrder(order?: SortOrder): SortOrder {

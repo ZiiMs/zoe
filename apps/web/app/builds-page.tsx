@@ -178,12 +178,9 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Badge variant="warning">Builds</Badge>
-              <Badge
-                variant={data.source === "poe.ninja" ? "success" : "outline"}
-                className="gap-1.5"
-              >
+              <Badge variant={buildSourceVariant(data.source)} className="gap-1.5">
                 <RadioTower className="h-3.5 w-3.5" aria-hidden="true" />
-                {data.source === "poe.ninja" ? "poe.ninja live" : "fixture fallback"}
+                {buildSourceLabel(data.source)}
               </Badge>
               <Badge variant="outline">{data.league.displayName}</Badge>
               {isRefreshing ? <Badge variant="secondary">Refreshing</Badge> : null}
@@ -313,7 +310,7 @@ export function BuildsPage({ initialData }: { initialData: BuildSearchResponse }
               <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
                 <div>
                   <CardDescription>
-                    {data.source === "poe.ninja" ? "Live poe.ninja ladder" : "Fallback ladder"} ·{" "}
+                    {buildSourceDescription(data.source)} ·{" "}
                     {new Date(data.fetchedAt).toLocaleTimeString()}
                   </CardDescription>
                   <CardTitle>Build ladder</CardTitle>
@@ -873,6 +870,26 @@ function StatPill({ label, value }: { label: string; value: string }) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function buildSourceLabel(source: BuildSearchResponse["source"]) {
+  if (source === "poe.ninja") {
+    return "poe.ninja live";
+  }
+
+  return source === "database" ? "persisted data" : "fixture fallback";
+}
+
+function buildSourceDescription(source: BuildSearchResponse["source"]) {
+  if (source === "poe.ninja") {
+    return "Live poe.ninja ladder";
+  }
+
+  return source === "database" ? "Persisted ladder" : "Fallback ladder";
+}
+
+function buildSourceVariant(source: BuildSearchResponse["source"]) {
+  return source === "poe.ninja" || source === "database" ? "success" : "outline";
 }
 
 function formatCompact(value: number) {

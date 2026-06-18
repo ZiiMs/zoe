@@ -101,8 +101,8 @@ export default async function BuildDetailPage({
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <Badge variant="warning">Build detail</Badge>
-              <Badge variant={detail.source === "poe.ninja" ? "success" : "outline"}>
-                {detail.source === "poe.ninja" ? "Live ladder data" : "fixture fallback"}
+              <Badge variant={buildDetailSourceVariant(detail.source)}>
+                {buildDetailSourceLabel(detail.source)}
               </Badge>
               <Badge variant="outline">{metadata.league}</Badge>
             </div>
@@ -556,10 +556,7 @@ function MetadataPanel({ detail }: { detail: BuildDetail }) {
       <CardContent className="grid gap-2 text-sm">
         <MetaRow label="Rank" value={metadata.rank ? `#${metadata.rank}` : "N/A"} />
         <MetaRow label="Class" value={metadata.ascendancyName ?? metadata.className} />
-        <MetaRow
-          label="Source"
-          value={detail.source === "poe.ninja" ? "poe.ninja live" : "fixture fallback"}
-        />
+        <MetaRow label="Source" value={buildDetailSourceLabel(detail.source)} />
         <MetaRow label="Captured" value={formatDateTime(detail.build.capturedAt)} />
         <MetaRow label="Updated" value={formatDateTime(detail.updatedAt)} />
         <MetaRow label="Last seen" value={formatDateTime(detail.lastSeenAt)} />
@@ -943,6 +940,18 @@ function formatNumber(value?: number) {
   }
 
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function buildDetailSourceLabel(source: BuildDetail["source"]) {
+  if (source === "poe.ninja") {
+    return "poe.ninja live";
+  }
+
+  return source === "database" ? "persisted data" : "fixture fallback";
+}
+
+function buildDetailSourceVariant(source: BuildDetail["source"]) {
+  return source === "poe.ninja" || source === "database" ? "success" : "outline";
 }
 
 function formatCompact(value: number) {

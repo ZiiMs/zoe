@@ -1,5 +1,5 @@
 import pg from "pg";
-import type { BuildSnapshot, BuildSummary, HeatmapAggregate } from "@zoe/domain";
+import type { BuildSearchParams, BuildSnapshot, BuildSummary, HeatmapAggregate } from "@zoe/domain";
 
 const allClassesHeatmapKey = "all";
 
@@ -32,6 +32,10 @@ interface SummaryStorageOptions {
   sourceSnapshot?: unknown;
 }
 
+export interface ReadBuildSnapshotsOptions extends BuildSearchParams {
+  limit?: number | undefined;
+}
+
 export function createPool(options: DatabaseOptions): pg.Pool {
   return new pg.Pool({
     connectionString: options.connectionString
@@ -41,6 +45,128 @@ export function createPool(options: DatabaseOptions): pg.Pool {
 export async function checkDatabase(client: DbQueryClient): Promise<boolean> {
   const result = await client.query("select 1 as ok");
   return (result.rows[0] as { ok?: number } | undefined)?.ok === 1;
+}
+
+export async function readBuildSnapshots(
+  client: DbQueryClient,
+  options: ReadBuildSnapshotsOptions = {}
+): Promise<BuildSnapshot[]> {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (options.league) {
+    values.push(options.league);
+    conditions.push(`league = $${values.length}`);
+  }
+
+  if (options.search) {
+    values.push(`%${options.search}%`);
+    conditions.push(
+      `(account_name ilike $${values.length} or character_name ilike $${values.length})`
+    );
+  }
+
+  if (options.className?.length) {
+    values.push(options.className);
+    conditions.push(
+      `(class_name = any($${values.length}::text[]) or ascendancy_name = any($${values.length}::text[]))`
+    );
+  }
+
+  values.push(options.limit ?? 100);
+  const limitPlaceholder = `$${values.length}`;
+  const result = await client.query(
+    `
+      select payload
+      from build_snapshots
+      ${conditions.length ? `where ${conditions.join(" and ")}` : ""}
+      order by captured_at desc, level desc
+      limit ${limitPlaceholder}
+    `,
+    values
+  );
+
+  return result.rows.map((row) =>
+    normalizeJsonb<BuildSnapshot>((row as { payload: unknown }).payload)
+  );
+}
+
+export async function readBuildSnapshot(
+  client: DbQueryClient,
+  id: string
+): Promise<BuildSnapshot | undefined> {
+  const result = await client.query(
+    `
+      select payload
+      from build_snapshots
+      where id = $1
+         or (league || ':' || account_name || ':' || character_name) = $1
+      order by captured_at desc
+      limit 1
+    `,
+    [id]
+  );
+  const row = result.rows[0] as { payload?: unknown } | undefined;
+  return row ? normalizeJsonb<BuildSnapshot>(row.payload) : undefined;
+}
+
+export async function readBuildSummaries(client: DbQueryClient): Promise<BuildSummary[]> {
+  const result = await client.query(
+    `
+      select
+        id,
+        build_id,
+        title,
+        primary_skill,
+        highlights,
+        defensive_layers,
+        generated_at
+      from build_summaries
+      order by generated_at desc
+      limit 100
+    `
+  );
+
+  return result.rows.map((row) => {
+    const record = row as Record<string, unknown>;
+    const primarySkill = stringOrUndefined(record.primary_skill);
+    return {
+      id: String(record.id),
+      buildId: String(record.build_id),
+      title: String(record.title),
+      highlights: normalizeJsonb<string[]>(record.highlights),
+      ...(primarySkill ? { primarySkill } : {}),
+      defensiveLayers: normalizeJsonb<string[]>(record.defensive_layers),
+      generatedAt: dateString(record.generated_at)
+    };
+  });
+}
+
+export async function readHeatmapAggregate(
+  client: DbQueryClient,
+  kind: HeatmapAggregate["kind"],
+  league?: string
+): Promise<HeatmapAggregate | undefined> {
+  const values: unknown[] = [kind, allClassesHeatmapKey];
+  const leagueClause = league ? "and league = $3" : "";
+  if (league) {
+    values.push(league);
+  }
+
+  const result = await client.query(
+    `
+      select payload
+      from heatmap_aggregates
+      where kind = $1
+        and class_name = $2
+        ${leagueClause}
+      order by generated_at desc
+      limit 1
+    `,
+    values
+  );
+  const row = result.rows[0] as { payload?: unknown } | undefined;
+  return row ? normalizeJsonb<HeatmapAggregate>(row.payload) : undefined;
 }
 
 export async function storeBuildSnapshot(
@@ -286,4 +412,16 @@ function createSummarySourceSnapshot(build: BuildSnapshot, summary: BuildSummary
       generatedAt: summary.generatedAt
     }
   };
+}
+
+function normalizeJsonb<T>(value: unknown): T {
+  return typeof value === "string" ? (JSON.parse(value) as T) : (value as T);
+}
+
+function stringOrUndefined(value: unknown) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function dateString(value: unknown) {
+  return value instanceof Date ? value.toISOString() : String(value);
 }

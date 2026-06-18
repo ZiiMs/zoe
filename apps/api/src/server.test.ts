@@ -1,8 +1,56 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildTradePriceCheckRequest, parseTradeItemText } from "@zoe/domain";
+import type { BuildSnapshot, BuildSummary, HeatmapAggregate } from "@zoe/domain";
 import { createServer } from "./server";
 import { __poeNinjaInternals, decodeSearchResult } from "./poe-ninja";
 import { __tradeInternals } from "./trade";
+
+const persistedBuild: BuildSnapshot = {
+  metadata: {
+    id: "poe-ninja:runesofaldur:stored:PersistedSpark",
+    accountName: "stored",
+    characterName: "PersistedSpark",
+    className: "Sorceress",
+    ascendancyName: "Stormweaver",
+    level: 91,
+    league: "Runes of Aldur"
+  },
+  mainSkills: [{ id: "spark", name: "Spark", usageCount: 1 }],
+  items: [{ slot: "weapon", name: "Voltaxic Wand", usageCount: 1 }],
+  passives: [{ passiveId: "raw-power", name: "Raw Power", weight: 3 }],
+  metrics: { dpsLabel: "1.2M", life: 1600, energyShield: 2200, ehpLabel: "9.5K" },
+  capturedAt: "2026-06-18T00:00:00.000Z",
+  source: "poe.ninja"
+};
+
+const persistedSummary: BuildSummary = {
+  id: "summary:persisted",
+  buildId: persistedBuild.metadata.id,
+  title: "PersistedSpark build summary",
+  highlights: ["Stored build"],
+  primarySkill: "Spark",
+  defensiveLayers: ["energy shield"],
+  generatedAt: "2026-06-18T00:01:00.000Z"
+};
+
+const persistedHeatmap: HeatmapAggregate = {
+  kind: "passives",
+  league: "Runes of Aldur",
+  points: [{ passiveId: "raw-power", name: "Raw Power", weight: 3 }],
+  generatedAt: "2026-06-18T00:02:00.000Z"
+};
+
+function createDbClient(rowsByQuery: (text: string) => unknown[]) {
+  return {
+    query: vi.fn(async (text: string) => ({
+      rows: rowsByQuery(text),
+      rowCount: 0,
+      command: "",
+      oid: 0,
+      fields: []
+    }))
+  };
+}
 
 describe("api server", () => {
   it("reports health", async () => {
@@ -73,6 +121,46 @@ describe("api server", () => {
     );
   });
 
+  it("prefers persisted builds when an optional database client returns rows", async () => {
+    const dbClient = createDbClient((text) =>
+      text.includes("from build_snapshots") ? [{ payload: persistedBuild }] : []
+    );
+    const server = createServer({
+      dbClient,
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const response = await server.inject({ method: "GET", url: "/builds?skills=Spark" });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      builds: Array<{ metadata: { characterName: string } }>;
+      source: string;
+      total: number;
+    }>();
+    expect(payload.source).toBe("database");
+    expect(payload.total).toBe(1);
+    expect(payload.builds[0]?.metadata.characterName).toBe("PersistedSpark");
+  });
+
+  it("falls back to fixtures when optional persisted build reads fail", async () => {
+    const dbClient = {
+      query: vi.fn(async () => {
+        throw new Error("database offline");
+      })
+    };
+    const server = createServer({
+      dbClient,
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const response = await server.inject({ method: "GET", url: "/builds" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ source: string; total: number }>()).toMatchObject({
+      source: "fixture",
+      total: 3
+    });
+  });
+
   it("parses build search parameters without throwing", async () => {
     const requestedUrls: string[] = [];
     const server = createServer({
@@ -128,6 +216,29 @@ describe("api server", () => {
     expect(payload.detail.items.length).toBeGreaterThan(0);
   });
 
+  it("prefers persisted build details when the optional database client has a match", async () => {
+    const dbClient = createDbClient((text) =>
+      text.includes("from build_snapshots") ? [{ payload: persistedBuild }] : []
+    );
+    const server = createServer({
+      dbClient,
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/builds/Runes%20of%20Aldur%3Astored%3APersistedSpark"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      build: { metadata: { id: string } };
+      detail: { source: string; skillGroups: Array<{ name: string }> };
+    }>();
+    expect(payload.detail.source).toBe("database");
+    expect(payload.build.metadata.id).toBe(persistedBuild.metadata.id);
+    expect(payload.detail.skillGroups[0]?.name).toBe("Spark");
+  });
+
   it("returns 404 for unknown build detail ids", async () => {
     const server = createServer({
       fetcher: async () => new Response("upstream unavailable", { status: 503 })
@@ -168,6 +279,44 @@ describe("api server", () => {
         expect.objectContaining({ passiveId: "lightning-walker", weight: 8 })
       ])
     );
+  });
+
+  it("prefers persisted summaries and heatmaps when optional database rows exist", async () => {
+    const dbClient = createDbClient((text) => {
+      if (text.includes("from build_summaries")) {
+        return [
+          {
+            id: persistedSummary.id,
+            build_id: persistedSummary.buildId,
+            title: persistedSummary.title,
+            primary_skill: persistedSummary.primarySkill,
+            highlights: persistedSummary.highlights,
+            defensive_layers: persistedSummary.defensiveLayers,
+            generated_at: persistedSummary.generatedAt
+          }
+        ];
+      }
+
+      if (text.includes("from heatmap_aggregates")) {
+        return [{ payload: persistedHeatmap }];
+      }
+
+      return [];
+    });
+    const server = createServer({
+      dbClient,
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+
+    const summariesResponse = await server.inject({ method: "GET", url: "/summaries" });
+    const heatmapResponse = await server.inject({ method: "GET", url: "/heatmaps/passives" });
+
+    expect(summariesResponse.statusCode).toBe(200);
+    expect(heatmapResponse.statusCode).toBe(200);
+    expect(summariesResponse.json<{ summaries: BuildSummary[] }>().summaries).toEqual([
+      persistedSummary
+    ]);
+    expect(heatmapResponse.json()).toEqual(persistedHeatmap);
   });
 
   it("returns normalized poe.ninja build index data", async () => {
@@ -222,9 +371,7 @@ describe("api server", () => {
     const response = await server.inject({ method: "GET", url: "/poe-ninja/build-index" });
 
     expect(response.statusCode).toBe(200);
-    expect(requestedUrls).toEqual([
-      "https://mirror.example.test/poe2/api/data/build-index-state"
-    ]);
+    expect(requestedUrls).toEqual(["https://mirror.example.test/poe2/api/data/build-index-state"]);
   });
 
   it("falls back to fixture build index when poe.ninja returns malformed JSON", async () => {
