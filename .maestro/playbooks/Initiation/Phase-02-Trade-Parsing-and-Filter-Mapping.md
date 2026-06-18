@@ -28,10 +28,15 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
     - Added domain coverage for unique item name/base parsing, quality, requirements, item level, socket/rune/charm lines, section-scoped modifier sources, and warning behavior.
     - Validation run: `bun run test:domain` passed with 1 test file and 8 tests; `bun run typecheck` passed for all 9 packages.
 
-- [ ] Improve modifier normalization and candidate generation:
+- [x] Improve modifier normalization and candidate generation:
   - Normalize numeric ranges, signed values, percentages, local tags, and parenthetical source markers consistently.
   - Choose a stable dominant value for simple values and ranges so default minimum filters are useful.
   - Ensure pseudo candidates disable covered exact candidates only when the pseudo filter represents the same underlying modifiers.
+  - Completion notes:
+    - `packages/domain/src/trade.ts` now normalizes hyphenated numeric ranges before scalar number placeholders, preserves signed parsed values, strips parenthetical tags from normalized stat text, and avoids adding stray spaces before percentages.
+    - Range-like modifiers now use the upper bound as the candidate value/default minimum, including `Adds # to # ...` and `#-#% ...` forms.
+    - Added regression coverage for range parsing, signed values, `(local)` tags, inline source markers, and partial pseudo coverage so unrelated exact modifiers such as `all Elemental Resistances` remain enabled.
+    - Validation run: `bun run test:domain` passed with 1 test file and 10 tests; `bun run typecheck` passed for all 9 packages.
 
 - [ ] Add pseudo stat suggestions for high-value trade checks:
   - Total elemental resistance, total chaos resistance, total maximum life, total maximum mana, total maximum energy shield, total attributes, and any existing locally supported pseudo stats.

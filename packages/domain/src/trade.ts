@@ -292,9 +292,9 @@ export function normalizeStatText(text: string) {
   return text
     .toLowerCase()
     .replace(/\([^)]+\)/g, "")
+    .replace(numericRangeRegex(), "#-#")
     .replace(/[+-]?\d+(?:\.\d+)?/g, "#")
     .replace(/\s+/g, " ")
-    .replace(/^\+?#+\s*/, "# ")
     .trim();
 }
 
@@ -405,8 +405,31 @@ function isKnownDescriptiveLine(line: string) {
   );
 }
 
+function numericRangeRegex() {
+  return /([+-]?\d+(?:\.\d+)?)\s*-\s*([+-]?\d+(?:\.\d+)?)/g;
+}
+
 function valuesFromText(text: string) {
-  return Array.from(text.matchAll(/[+-]?\d+(?:\.\d+)?/g), (match) => Number(match[0]));
+  const ranges = Array.from(text.matchAll(numericRangeRegex()), (match) => ({
+    start: match.index ?? 0,
+    end: (match.index ?? 0) + match[0].length,
+    values: [Number(match[1]), Number(match[2])]
+  }));
+  const numbers = Array.from(text.matchAll(/[+-]?\d+(?:\.\d+)?/g), (match) => ({
+    index: match.index ?? 0,
+    value: Number(match[0])
+  }));
+
+  return [
+    ...ranges.map((range) => ({ index: range.start, values: range.values })),
+    ...numbers
+      .filter(
+        (number) => !ranges.some((range) => number.index >= range.start && number.index < range.end)
+      )
+      .map((number) => ({ index: number.index, values: [number.value] }))
+  ]
+    .sort((left, right) => left.index - right.index)
+    .flatMap((token) => token.values);
 }
 
 function createStatCandidates(
@@ -553,9 +576,16 @@ function dominantValue(modifier: ParsedItemModifier) {
     return 0;
   }
 
-  if (modifier.values.length >= 2 && /\bto\b/i.test(modifier.text) && !/%/.test(modifier.text)) {
+  if (
+    modifier.values.length >= 2 &&
+    (/\bto\b/i.test(modifier.text) || hasNumericRange(modifier.text))
+  ) {
     return modifier.values[modifier.values.length - 1] ?? modifier.values[0] ?? 0;
   }
 
   return modifier.values[0] ?? 0;
+}
+
+function hasNumericRange(text: string) {
+  return numericRangeRegex().test(text);
 }

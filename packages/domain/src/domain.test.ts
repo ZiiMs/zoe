@@ -235,4 +235,84 @@ Veiled Modifiers:
       "Unsupported item text line: Veiled Modifiers:"
     ]);
   });
+
+  it("normalizes ranges, signed values, local tags, and source markers for candidates", () => {
+    const item = parseTradeItemText(`Item Class: One Hand Maces
+Rarity: Rare
+Gale Crusher
+War Hammer
+--------
+Explicit Modifiers:
+Adds 12 to 24 Physical Damage
+20-30% increased Physical Damage (local)
+-10% to Fire Resistance (fractured)
++14% to Cold Resistance
++8% to Lightning Resistance`);
+
+    expect(item.modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: "Adds 12 to 24 Physical Damage",
+          normalizedText: "adds # to # physical damage",
+          values: [12, 24]
+        }),
+        expect.objectContaining({
+          text: "20-30% increased Physical Damage (local)",
+          normalizedText: "#-#% increased physical damage",
+          values: [20, 30]
+        }),
+        expect.objectContaining({
+          text: "-10% to Fire Resistance (fractured)",
+          normalizedText: "#% to fire resistance",
+          source: "fractured",
+          values: [-10]
+        })
+      ])
+    );
+
+    expect(item.statCandidates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Adds 12 to 24 Physical Damage",
+          min: 24,
+          value: 24
+        }),
+        expect.objectContaining({
+          label: "20-30% increased Physical Damage (local)",
+          min: 30,
+          value: 30
+        })
+      ])
+    );
+  });
+
+  it("keeps exact candidates enabled when pseudo coverage is only partial", () => {
+    const item = parseTradeItemText(`Item Class: Rings
+Rarity: Rare
+Storm Loop
+Ruby Ring
+--------
+Explicit Modifiers:
++20% to Fire Resistance
++11% to Cold Resistance
++7% to Lightning Resistance
++9% to all Elemental Resistances`);
+
+    const elementalPseudo = item.statCandidates.find(
+      (candidate) => candidate.id === "pseudo-total-elemental-resistance"
+    );
+    const allElementalExact = item.statCandidates.find((candidate) =>
+      candidate.label.includes("all Elemental Resistances")
+    );
+
+    expect(elementalPseudo).toMatchObject({
+      enabled: true,
+      value: 38,
+      coveredModifierIds: ["mod-0", "mod-1", "mod-2"]
+    });
+    expect(allElementalExact).toMatchObject({
+      enabled: true,
+      min: 9
+    });
+  });
 });
