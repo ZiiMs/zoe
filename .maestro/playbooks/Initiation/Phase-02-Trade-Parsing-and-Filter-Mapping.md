@@ -58,10 +58,14 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
     - Added domain regressions for explicit, implicit, and pseudo stat ID attachment when conflicting same-text entries exist, plus unmapped exact candidates that remain visible with `tradeStatId` unset.
     - Validation run: `bun run test:domain` passed with 1 test file and 13 tests; `bun run typecheck` passed for all 9 packages; `bun run lint` passed with 7 existing Next.js `<img>` warnings in `apps/web`.
 
-- [ ] Write focused domain tests for parser and mapping behavior:
+- [x] Write focused domain tests for parser and mapping behavior:
   - Add representative rare ring, rare weapon, unique item, socketed item, malformed clipboard, and mixed resistance fixtures.
   - Assert item metadata, modifier sources, candidate enablement, pseudo totals, warnings, normalized text, and stat ID attachment.
   - Keep tests beside the implementation as `*.test.ts` and mock trade metadata with small local arrays.
+  - Completion notes:
+    - Added `packages/domain/src/trade-fixtures.test.ts` with six representative parser fixtures covering rare rings, rare weapons, unique items, socketed items, malformed clipboard text, and mixed resistance totals.
+    - The tests assert item metadata, requirements, quality, item level, socket metadata, modifier sources, normalized text, range dominant values, candidate enablement, pseudo totals, parse warnings, and stat ID attachment with local mock trade stat groups.
+    - Validation run: `bun run test:domain` passed with 2 test files and 19 tests; `bun run typecheck` passed for all 9 packages; `bun run test` passed for all 9 packages.
 
 - [ ] Run parser validation and fix failures:
   - `bun run test:domain`
