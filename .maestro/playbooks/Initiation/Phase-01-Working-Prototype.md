@@ -34,12 +34,13 @@ This phase turns the existing Zoe monorepo into a verified, runnable prototype t
   - If a small code guard is needed, follow the existing `isTauriRuntime()` pattern and keep the production Tauri behavior intact.
   - Completion note: Verified `bun run dev:desktop:renderer` at `http://127.0.0.1:5173/` in headless Chrome without Tauri. The browser rendered the quick overlay panel, `ITEM PRICE CHECK` / `READY` state, passive `Hover an item in PoE2 and press Ctrl+D.` instruction, and Search/Trade controls with no Vite error overlay or runtime errors. Added a data-URI favicon in `apps/desktop/index.html` to prevent a renderer-only `/favicon.ico` 404 during browser smoke checks. Verified with `bun run typecheck:desktop` and `bun run build:desktop`.
 
-- [ ] Run the focused validation commands and fix failures introduced by this phase:
+- [x] Run the focused validation commands and fix failures introduced by this phase:
   - `bun run test:domain`
   - `bun run test:api`
   - `bun run typecheck`
   - `bun run build:web`
   - `bun run build:desktop`
+  - Completion note: Ran all focused validation commands successfully. `bun run test:domain` passed with 6 tests, `bun run test:api` passed with 13 tests, `bun run typecheck` passed across all 9 packages, `bun run build:web` completed the Next.js production build, and `bun run build:desktop` completed the Vite renderer build. No phase-introduced failures required code changes.
 
 - [ ] Start the runnable prototype services and report the URLs:
   - Start `bun run dev:api` and confirm `http://localhost:4000/health` returns `{ "ok": true }`.
