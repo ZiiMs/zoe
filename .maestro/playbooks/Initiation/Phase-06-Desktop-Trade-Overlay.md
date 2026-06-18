@@ -18,10 +18,12 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Completed hardening notes: `capture_item_text` now verifies the focused process before clipboard capture and returns explicit messages when PoE2 is not focused or the active window cannot be inspected. Clipboard-empty errors now mention the administrator-privilege mismatch case. The renderer keeps the non-Tauri `dev:desktop:renderer` path focused by default, while Tauri hotkey focus failures are logged to the debug panel. Cursor positioning, overlay focus, and click-through sync now fail gracefully with debug messages instead of silent drops or crashes.
   - Validation: `cargo check` in `apps/desktop/src-tauri`, `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run test:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
-- [ ] Improve hotkey and overlay state handling:
+- [x] Improve hotkey and overlay state handling:
   - Keep `CommandOrControl+D` for quick price check and `Shift+Space` for settings or interactive mode unless the existing code already defines a different convention.
   - Prevent duplicate shortcut registration during hot reloads.
   - Ensure Escape closes the overlay and passive mode restores click-through behavior.
+  - Completed hotkey/state notes: `apps/desktop/src/main.tsx` now keeps the existing `CommandOrControl+D` quick price check and `Shift+Space` settings toggle, but replaces only Zoe-owned shortcuts instead of calling `unregisterAll`. A window-scoped setup token prevents stale hot-reload cleanup from unregistering the current handlers, and shortcut callbacks ignore stale setup instances. Escape still routes through `closeOverlay`, which closes the overlay and returns it to passive mode. The settings click-through action now uses an explicit passive-mode handler, and `apps/desktop/src/styles.css` mirrors passive click-through behavior for renderer-only fallback by disabling pointer events while the overlay is open in passive mode.
+  - Validation: `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run test:desktop` passed. The desktop test target currently has no test files and exits successfully with `--passWithNoTests`.
 
 - [ ] Improve the quick price panel workflow:
   - Show item name, base type, league, item level, mapped filter count, enabled filters, loading state, price check result count, prices, listed age, and trade link.

@@ -45,6 +45,11 @@ select {
   pointer-events: auto;
 }
 
+.overlay-open.overlay-passive,
+.overlay-open.overlay-passive .trade-panel {
+  pointer-events: none;
+}
+
 .overlay-closed {
   opacity: 0;
 }

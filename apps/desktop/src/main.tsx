@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import { isRegistered, register, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
+import { isRegistered, register, unregister } from "@tauri-apps/plugin-global-shortcut";
 import { createZoeApiClient } from "@zoe/api-client";
 import { readDesktopEnv } from "@zoe/config";
 import {
@@ -36,6 +36,13 @@ type DebugLine = { id: number; message: string };
 const quickPanelSize = { width: 340, height: 690 };
 const panelMargin = 18;
 const cursorPanelGap = 18;
+const zoeShortcuts = [priceCheckShortcut, settingsShortcut] as const;
+
+declare global {
+  interface Window {
+    __zoeShortcutSetupId?: symbol;
+  }
+}
 
 function OverlayApp() {
   const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
@@ -158,36 +165,41 @@ function OverlayApp() {
 
   useEffect(() => {
     let disposed = false;
+    const setupId = Symbol("zoe-shortcuts");
 
     async function setupShortcuts() {
       if (!isTauriRuntime()) {
         return;
       }
 
-      await unregisterAll().catch(() => undefined);
+      window.__zoeShortcutSetupId = setupId;
 
-      if (!(await isRegistered(priceCheckShortcut).catch(() => false))) {
-        await register(priceCheckShortcut, () => {
+      await replaceZoeShortcut(priceCheckShortcut, () => {
+        if (!disposed && window.__zoeShortcutSetupId === setupId) {
           void captureAndPriceCheckFromShortcut();
-        });
-      }
+        }
+      });
 
-      if (!(await isRegistered(settingsShortcut).catch(() => false))) {
-        await register(settingsShortcut, () => {
+      await replaceZoeShortcut(settingsShortcut, () => {
+        if (!disposed && window.__zoeShortcutSetupId === setupId) {
           void toggleSettingsOverlayFromShortcut();
-        });
-      }
+        }
+      });
     }
 
     setupShortcuts().catch((error) => {
       if (!disposed) {
         setNotice(`Hotkeys unavailable: ${String(error)}`);
+        addDebug(`hotkey setup failed: ${String(error)}`);
       }
     });
 
     return () => {
       disposed = true;
-      unregisterAll().catch(() => undefined);
+      if (window.__zoeShortcutSetupId === setupId) {
+        delete window.__zoeShortcutSetupId;
+        void unregisterZoeShortcuts();
+      }
     };
   }, []);
 
@@ -425,6 +437,10 @@ function OverlayApp() {
     setMode("passive");
   }
 
+  function enterPassiveMode() {
+    setMode("passive");
+  }
+
   async function positionQuickPanelNearCursor() {
     if (!isTauriRuntime()) {
       return;
@@ -507,7 +523,7 @@ function OverlayApp() {
               onChange={updateCandidate}
               onClose={closeOverlay}
               onLeagueChange={setLeague}
-              onPassive={() => setMode("passive")}
+              onPassive={enterPassiveMode}
               onStartDrag={beginSettingsDrag}
             />
           )}
@@ -1002,6 +1018,25 @@ function useLiveRef<T>(value: T) {
     ref.current = value;
   }, [value]);
   return ref;
+}
+
+async function replaceZoeShortcut(shortcut: (typeof zoeShortcuts)[number], handler: () => void) {
+  const registered = await isRegistered(shortcut).catch(() => false);
+  if (registered) {
+    await unregister(shortcut);
+  }
+
+  await register(shortcut, handler);
+}
+
+async function unregisterZoeShortcuts() {
+  await Promise.all(
+    zoeShortcuts.map(async (shortcut) => {
+      if (await isRegistered(shortcut).catch(() => false)) {
+        await unregister(shortcut).catch(() => undefined);
+      }
+    })
+  );
 }
 
 async function getPoeFocusStatus(): Promise<{ focused: boolean; message?: string }> {
