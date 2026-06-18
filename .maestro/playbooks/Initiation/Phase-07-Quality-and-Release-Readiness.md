@@ -44,10 +44,15 @@ This phase prepares Zoe for sustained development and shareable builds. It tight
     - Added `docs/decisions/adr-002-local-api-as-overlay-gateway.md` documenting the accepted local API gateway boundary for overlay trade calls.
     - Verified ADR Markdown formatting with `bunx prettier --check docs/decisions/adr-001-fixture-first-development.md docs/decisions/adr-002-local-api-as-overlay-gateway.md`.
 
-- [ ] Improve README developer workflow only where it is missing or stale:
+- [x] Improve README developer workflow only where it is missing or stale:
   - Include setup, `bun install`, optional Postgres startup, API/web/desktop/worker dev commands, validation commands, and fixture fallback behavior.
   - Include local URLs for API health, web app, and desktop renderer.
   - Avoid duplicating large architecture docs; link to structured docs with relative paths.
+  - Completed on 2026-06-18:
+    - Updated `README.md` with fixture-friendly setup, optional Postgres startup, per-app dev commands, repo-wide validation commands, and default local URLs for API health/build data, web, and desktop renderer.
+    - Documented the fixture fallback path for API, web, and worker workflows, including `ZOE_API_PERSISTED_READS=true` for persisted API reads.
+    - Linked to the structured architecture and decision docs instead of duplicating their content.
+    - Verified README formatting with `bunx prettier --check README.md`.
 
 - [ ] Verify all app entry points:
   - Start the API and confirm `/health`, `/builds`, `/summaries`, and `/heatmaps/passives`.
