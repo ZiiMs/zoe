@@ -22,7 +22,10 @@ export const serverEnvSchema = z.object({
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
 export function readServerEnv(env: NodeJS.ProcessEnv = process.env): ServerEnv {
-  return serverEnvSchema.parse(env);
+  return serverEnvSchema.parse({
+    ...env,
+    API_PORT: env.API_PORT ?? env.PORT
+  });
 }
 
 const clientApiBaseUrlSchema = httpUrlSchema.default("http://localhost:4000");

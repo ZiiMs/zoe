@@ -102,6 +102,17 @@ bun run worker:aggregate:heatmaps
 The worker scripts print JSON or count summaries using fixture data by default,
 which makes them safe to run before a local database is populated.
 
+## Deployment
+
+Deploy the Next.js web app from `apps/web` and point
+`NEXT_PUBLIC_API_BASE_URL` at the public API URL.
+
+The API service is configured for Railway in `railway.json`. Keep the Railway
+service root at the repository root so Railpack can detect the Bun workspace,
+then use `bun run build:api` for the build and `bun apps/api/src/index.ts` for
+the start command. Railway provides `PORT`; Zoe also honors `API_PORT` when set
+explicitly.
+
 ## Architecture Notes
 
 For the fuller system map and tradeoffs, see:

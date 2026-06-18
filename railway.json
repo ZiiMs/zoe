@@ -1,0 +1,33 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "bun run build:api",
+    "watchPatterns": [
+      "/apps/api/**",
+      "/packages/config/**",
+      "/packages/db/**",
+      "/packages/domain/**",
+      "/package.json",
+      "/bun.lock",
+      "/turbo.json",
+      "/tsconfig.base.json"
+    ],
+    "buildEnvironment": "V3"
+  },
+  "deploy": {
+    "runtime": "V2",
+    "numReplicas": 1,
+    "startCommand": "bun apps/api/src/index.ts",
+    "sleepApplication": false,
+    "useLegacyStacker": false,
+    "ipv6EgressEnabled": false,
+    "multiRegionConfig": {
+      "us-east4-eqdc4a": {
+        "numReplicas": 1
+      }
+    },
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

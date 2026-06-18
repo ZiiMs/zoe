@@ -21,6 +21,8 @@ describe("environment validation", () => {
 
   it("coerces valid API ports and rejects invalid ports", () => {
     expect(readServerEnv({ API_PORT: "4100" }).API_PORT).toBe(4100);
+    expect(readServerEnv({ PORT: "4200" }).API_PORT).toBe(4200);
+    expect(readServerEnv({ API_PORT: "4100", PORT: "4200" }).API_PORT).toBe(4100);
     expect(() => readServerEnv({ API_PORT: "not-a-port" })).toThrow();
   });
 
