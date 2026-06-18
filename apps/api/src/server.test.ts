@@ -26,6 +26,90 @@ describe("api server", () => {
     expect(payload.source).toBe("fixture");
   });
 
+  it("parses build search parameters without throwing", async () => {
+    const requestedUrls: string[] = [];
+    const server = createServer({
+      fetcher: async (input) => {
+        requestedUrls.push(String(input));
+        return new Response("upstream unavailable", { status: 503 });
+      }
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/builds?league=runesofaldur&search=StormIndex&class=Stormweaver&skill=Spark&gear=Voltaxic%20Wand&sort=dps&order=asc&page=2"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      builds: unknown[];
+      source: string;
+      sort: { field: string; order: string };
+    }>();
+    expect(payload.source).toBe("fixture");
+    expect(payload.builds).toHaveLength(3);
+    expect(payload.sort).toEqual({ field: "dps", order: "asc" });
+
+    const searchUrl = requestedUrls.find((url) => url.includes("/api/builds/fixture/search"));
+    expect(searchUrl).toBeDefined();
+    expect(searchUrl).toContain("overview=runesofaldur");
+    expect(searchUrl).toContain("sort=dps");
+    expect(searchUrl).toContain("sort-asc=true");
+    expect(searchUrl).toContain("name=StormIndex");
+    expect(searchUrl).toContain("class=Stormweaver");
+    expect(searchUrl).toContain("skills=Spark");
+    expect(searchUrl).toContain("items=Voltaxic+Wand");
+  });
+
+  it("returns fixture build details for web detail ids when upstream is unavailable", async () => {
+    const server = createServer({
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/builds/Dawn%20of%20the%20Hunt%3Azoe%3AStormIndex"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      build: { metadata: { id: string; characterName: string } };
+      detail: { source: string; skillGroups: Array<{ name: string }>; items: unknown[] };
+    }>();
+    expect(payload.build.metadata.id).toBe("fixture:spark-stormweaver");
+    expect(payload.build.metadata.characterName).toBe("StormIndex");
+    expect(payload.detail.source).toBe("fixture");
+    expect(payload.detail.skillGroups[0]?.name).toBe("Spark");
+    expect(payload.detail.items.length).toBeGreaterThan(0);
+  });
+
+  it("returns fixture summaries and passive heatmaps", async () => {
+    const server = createServer({
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const summariesResponse = await server.inject({ method: "GET", url: "/summaries" });
+    const heatmapResponse = await server.inject({ method: "GET", url: "/heatmaps/passives" });
+
+    expect(summariesResponse.statusCode).toBe(200);
+    expect(heatmapResponse.statusCode).toBe(200);
+
+    const summariesPayload = summariesResponse.json<{
+      summaries: Array<{ buildId: string; highlights: string[] }>;
+    }>();
+    expect(summariesPayload.summaries).toHaveLength(3);
+    expect(summariesPayload.summaries[0]?.buildId).toBe("fixture:spark-stormweaver");
+    expect(summariesPayload.summaries[0]?.highlights.length).toBeGreaterThan(0);
+
+    const heatmapPayload = heatmapResponse.json<{
+      kind: string;
+      points: Array<{ passiveId: string; weight: number }>;
+    }>();
+    expect(heatmapPayload.kind).toBe("passives");
+    expect(heatmapPayload.points).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ passiveId: "lightning-walker", weight: 8 })
+      ])
+    );
+  });
+
   it("returns normalized poe.ninja build index data", async () => {
     const server = createServer({
       fetcher: async () =>

@@ -114,7 +114,7 @@ function parseBuildSearchParams(
     search: first(query.search),
     className: list(query.class),
     keystones: list(query.keystones),
-    skills: list(query.skills),
+    skills: list(query.skills ?? query.skill),
     supports: list(query.supports),
     gear: list(query.gear),
     sort: parseSort(first(query.sort)),

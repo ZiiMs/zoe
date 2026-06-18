@@ -16,10 +16,11 @@ This phase turns the existing Zoe monorepo into a verified, runnable prototype t
   - Keep all network calls mocked inside tests so this task runs offline and deterministically.
   - Completion note: Strengthened `packages/domain/src/domain.test.ts` to assert a representative rare ring parses into metadata, five modifiers, no parse warnings, pseudo resistance/life suggestions, and enabled exact Strength filters, then builds a price-check request from enabled filters. Added an API smoke test in `apps/api/src/server.test.ts` that parses the same rare item, posts the derived request to `/trade/price-check`, mocks official stats/search/fetch responses offline, and verifies listing price, seller, total, trade URL, captured search body, and resolved pseudo/exact trade stat filters. Verified with `bun run test:domain`, `bun run test:api`, and `bun run typecheck`.
 
-- [ ] Create or strengthen a fixture-backed build exploration smoke path:
+- [x] Create or strengthen a fixture-backed build exploration smoke path:
   - Ensure `GET /health`, `GET /builds`, `GET /builds/:id`, `GET /summaries`, and `GET /heatmaps/passives` return useful fixture-backed responses when upstream poe.ninja is unavailable.
   - Add focused tests only where gaps exist, using the current Fastify `server.inject` style.
   - Verify build search parameters for league, search, class, skill, gear, sort, order, and page are parsed without throwing.
+  - Completion note: Added fixture-backed API smoke coverage in `apps/api/src/server.test.ts` for `/builds` query parsing, web-style `/builds/:id` detail IDs, `/summaries`, and `/heatmaps/passives`, reusing the existing Fastify `server.inject` style. Updated `apps/api/src/server.ts` to accept the singular `skill` query alias in addition to `skills`, and updated `apps/api/src/poe-ninja.ts` so fixture detail fallback works for web detail links like `Dawn of the Hunt:zoe:StormIndex` when poe.ninja is unavailable. Verified with `bun run test:api` and `bun run typecheck`.
 
 - [ ] Verify the web build explorer works against the local API or fixture fallback:
   - Start from existing `apps/web/app/page.tsx`, `apps/web/app/builds-page.tsx`, and shared `@zoe/ui` components.

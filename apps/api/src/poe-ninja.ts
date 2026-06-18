@@ -309,7 +309,7 @@ export async function fetchPoeNinjaBuildDetail(
   const parsed = parsePoeNinjaBuildId(id);
 
   if (!parsed) {
-    const fixture = fixtureBuilds.find((build) => build.metadata.id === id);
+    const fixture = findFixtureBuildDetail(id);
     return fixture ? fixtureBuildDetail(fixture) : undefined;
   }
 
@@ -332,7 +332,8 @@ export async function fetchPoeNinjaBuildDetail(
 
     return normalizeCharacterDetail(await response.json(), parsed, league, fetcher);
   } catch {
-    return undefined;
+    const fixture = findFixtureBuildDetail(id, parsed);
+    return fixture ? fixtureBuildDetail(fixture) : undefined;
   }
 }
 
@@ -883,6 +884,25 @@ function fixtureBuildDetail(build: BuildSnapshot): BuildDetail {
     passiveCounts: {},
     source: "fixture"
   };
+}
+
+function findFixtureBuildDetail(
+  id: string,
+  parsed?: { league: string; account: string; character: string }
+) {
+  if (!parsed) {
+    return fixtureBuilds.find((build) => build.metadata.id === id);
+  }
+
+  const parsedLeague = slugify(parsed.league);
+  return fixtureBuilds.find((build) => {
+    const metadata = build.metadata;
+    return (
+      metadata.accountName === parsed.account &&
+      metadata.characterName === parsed.character &&
+      (metadata.league === parsed.league || metadata.id === id || slugify(metadata.league) === parsedLeague)
+    );
+  });
 }
 
 function formatDps(value?: number) {
