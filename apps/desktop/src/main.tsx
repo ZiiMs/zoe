@@ -9,6 +9,7 @@ import {
   buildTradePriceCheckRequest,
   parseTradeItemText,
   type ParsedTradeItem,
+  type TradeLeague,
   type TradeListing,
   type TradePriceCheckResult,
   type TradeStatCandidate,
@@ -18,7 +19,6 @@ import { Check, ExternalLink, EyeOff, List, Search, X } from "lucide-react";
 import "./styles.css";
 
 const defaultApiBaseUrl = import.meta.env.VITE_ZOE_API_BASE_URL ?? "http://localhost:4000";
-const defaultLeague = "Standard";
 const priceCheckShortcut = "CommandOrControl+D";
 const settingsShortcut = "Shift+Space";
 const quickTradeListingLimit = 20;
@@ -31,7 +31,9 @@ type DebugLine = { id: number; message: string };
 
 function OverlayApp() {
   const [apiBaseUrl, setApiBaseUrl] = useState(defaultApiBaseUrl);
-  const [league, setLeague] = useState(defaultLeague);
+  const [league, setLeague] = useState("");
+  const [leagues, setLeagues] = useState<TradeLeague[]>([]);
+  const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
   const [overlayOpen, setOverlayOpen] = useState(() => !isTauriRuntime());
   const [overlayView, setOverlayView] = useState<OverlayView>("quick");
   const [mode, setMode] = useState<OverlayMode>("passive");
@@ -72,18 +74,29 @@ function OverlayApp() {
     let cancelled = false;
     setApiStatus("checking");
 
-    Promise.all([api.health(), api.tradeStats()])
-      .then(([, response]) => {
+    setIsLoadingLeagues(true);
+
+    Promise.all([api.health(), api.tradeStats(), api.tradeLeagues()])
+      .then(([, statsResponse, leaguesResponse]) => {
         if (!cancelled) {
-          setStats(response.stats);
+          setStats(statsResponse.stats);
+          setLeagues(leaguesResponse.leagues);
+          setLeague((current) => selectTradeLeague(leaguesResponse.leagues, current));
           setApiStatus("ready");
-          addDebug(`api ready, trade stat groups=${response.stats.length}`);
+          addDebug(
+            `api ready, trade stat groups=${statsResponse.stats.length}, leagues=${leaguesResponse.leagues.length}`
+          );
         }
       })
       .catch(() => {
         if (!cancelled) {
           setApiStatus("offline");
           addDebug(`api offline at ${apiBaseUrl}`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingLeagues(false);
         }
       });
 
@@ -224,9 +237,13 @@ function OverlayApp() {
     try {
       const rawText = await invoke<string>("capture_item_text");
       const parsed = parseTradeItemText(rawText);
-      const activeStats = statsRef.current.length
-        ? statsRef.current
-        : await refreshTradeStats(apiRef.current).catch(() => []);
+      let canSearch = apiStatusRef.current === "ready";
+      let activeStats = statsRef.current;
+      if (!activeStats.length) {
+        const metadata = await refreshTradeMetadata(apiRef.current).catch(() => undefined);
+        activeStats = metadata?.stats ?? [];
+        canSearch = Boolean(metadata);
+      }
       const nextCandidates = attachTradeStatIds(parsed.statCandidates, activeStats);
       const mappedCount = nextCandidates.filter((candidate) => candidate.tradeStatId).length;
       const enabledCount = nextCandidates.filter((candidate) => candidate.enabled).length;
@@ -251,7 +268,7 @@ function OverlayApp() {
       setMode("interactive");
       setNotice(parsed.parseWarnings[0] ?? "Searching comparable listings...");
 
-      if (apiStatusRef.current === "ready") {
+      if (canSearch) {
         await runPriceCheck(nextCandidates, parsed, apiRef.current);
       }
     } catch (error) {
@@ -275,12 +292,19 @@ function OverlayApp() {
 
     setIsLoading(true);
     try {
+      let activeLeague = leagueRef.current;
       if (apiStatusRef.current !== "ready") {
-        await refreshTradeStats(activeApi);
+        const metadata = await refreshTradeMetadata(activeApi);
+        activeLeague = metadata.league;
+      } else if (!activeLeague) {
+        activeLeague = await refreshTradeLeagues(activeApi);
+      }
+      if (!activeLeague) {
+        throw new Error("No trade leagues are available from the API.");
       }
       const request = buildTradePriceCheckRequest(
         nextItem,
-        leagueRef.current,
+        activeLeague,
         nextCandidates,
         quickTradeListingLimit
       );
@@ -323,18 +347,50 @@ function OverlayApp() {
     );
   }
 
-  async function refreshTradeStats(activeApi = apiRef.current) {
-    addDebug(`api check ${apiBaseUrl}`);
+  async function refreshTradeLeagues(activeApi = apiRef.current) {
+    setIsLoadingLeagues(true);
     try {
-      const [, response] = await Promise.all([activeApi.health(), activeApi.tradeStats()]);
-      setStats(response.stats);
+      const response = await activeApi.tradeLeagues();
+      setLeagues(response.leagues);
+      const selectedLeague = selectTradeLeague(response.leagues, leagueRef.current);
+      setLeague(selectedLeague);
+      addDebug(
+        `trade leagues loaded=${response.leagues.length}, selected=${selectedLeague || "-"}`
+      );
+      return selectedLeague;
+    } finally {
+      setIsLoadingLeagues(false);
+    }
+  }
+
+  async function refreshTradeMetadata(activeApi = apiRef.current) {
+    addDebug(`api check ${apiBaseUrl}`);
+    setIsLoadingLeagues(true);
+    try {
+      const [, statsResponse, leaguesResponse] = await Promise.all([
+        activeApi.health(),
+        activeApi.tradeStats(),
+        activeApi.tradeLeagues()
+      ]);
+      const selectedLeague = selectTradeLeague(leaguesResponse.leagues, leagueRef.current);
+      setStats(statsResponse.stats);
+      setLeagues(leaguesResponse.leagues);
+      setLeague(selectedLeague);
       setApiStatus("ready");
-      addDebug(`api ready, trade stat groups=${response.stats.length}`);
-      return response.stats;
+      addDebug(
+        `api ready, trade stat groups=${statsResponse.stats.length}, leagues=${leaguesResponse.leagues.length}`
+      );
+      return {
+        stats: statsResponse.stats,
+        leagues: leaguesResponse.leagues,
+        league: selectedLeague
+      };
     } catch (error) {
       setApiStatus("offline");
       addDebug(`api unavailable: ${String(error)}`);
       throw error;
+    } finally {
+      setIsLoadingLeagues(false);
     }
   }
 
@@ -345,7 +401,7 @@ function OverlayApp() {
 
   function beginSettingsDrag(event: React.PointerEvent<HTMLElement>) {
     const target = event.target as HTMLElement;
-    if (target.closest("button, a, input, label")) {
+    if (target.closest("button, a, input, select, label")) {
       return;
     }
 
@@ -379,6 +435,7 @@ function OverlayApp() {
               isLoading={isLoading}
               item={item}
               league={league}
+              leagues={leagues}
               notice={notice}
               result={result}
               onCapture={() => void captureAndPriceCheck()}
@@ -394,8 +451,10 @@ function OverlayApp() {
               debugLines={debugLines}
               enabledCount={enabledCandidates.length}
               isLoading={isLoading}
+              isLoadingLeagues={isLoadingLeagues}
               item={item}
               league={league}
+              leagues={leagues}
               notice={notice}
               result={result}
               onApiBaseUrlChange={setApiBaseUrl}
@@ -420,6 +479,7 @@ function QuickPricePanel({
   isLoading,
   item,
   league,
+  leagues,
   notice,
   result,
   onCapture,
@@ -433,6 +493,7 @@ function QuickPricePanel({
   isLoading: boolean;
   item?: ParsedTradeItem | undefined;
   league: string;
+  leagues: TradeLeague[];
   notice: string;
   result?: TradePriceCheckResult | undefined;
   onCapture: () => void;
@@ -443,6 +504,7 @@ function QuickPricePanel({
   const listedCount = result?.total ?? 0;
   const mappedCount = candidates.filter((candidate) => candidate.tradeStatId).length;
   const hasSearchError = notice.startsWith("Price check failed:");
+  const leagueLabel = formatLeagueLabel(leagues, league);
 
   return (
     <>
@@ -457,7 +519,7 @@ function QuickPricePanel({
       </header>
 
       <section className="quick-meta" aria-label="Item summary">
-        <span>{league}</span>
+        <span>{leagueLabel}</span>
         <span>ilvl: {item?.itemLevel ?? "--"}</span>
       </section>
 
@@ -551,8 +613,10 @@ function SettingsPanel({
   debugLines,
   enabledCount,
   isLoading,
+  isLoadingLeagues,
   item,
   league,
+  leagues,
   notice,
   result,
   onApiBaseUrlChange,
@@ -569,8 +633,10 @@ function SettingsPanel({
   debugLines: DebugLine[];
   enabledCount: number;
   isLoading: boolean;
+  isLoadingLeagues: boolean;
   item?: ParsedTradeItem | undefined;
   league: string;
+  leagues: TradeLeague[];
   notice: string;
   result?: TradePriceCheckResult | undefined;
   onApiBaseUrlChange: (value: string) => void;
@@ -616,7 +682,18 @@ function SettingsPanel({
         </label>
         <label>
           League
-          <input value={league} onChange={(event) => onLeagueChange(event.target.value)} />
+          <select
+            value={league}
+            onChange={(event) => onLeagueChange(event.target.value)}
+            disabled={isLoadingLeagues || leagues.length === 0}
+          >
+            {league ? null : <option value="">Loading leagues</option>}
+            {leagues.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.text}
+              </option>
+            ))}
+          </select>
         </label>
         <p>Use Windowed or Windowed Fullscreen. If PoE2 runs as admin, run Zoe as admin too.</p>
       </section>
@@ -810,6 +887,27 @@ function Badge({ children, muted = false }: { children: React.ReactNode; muted?:
 
 function StatusPill({ label }: { label: ApiStatus }) {
   return <span className={`status-pill status-${label}`}>{label}</span>;
+}
+
+function selectTradeLeague(leagues: TradeLeague[], currentLeague: string) {
+  if (currentLeague && leagues.some((league) => league.id === currentLeague)) {
+    return currentLeague;
+  }
+
+  const poe2Leagues = leagues.filter((league) => !league.realm || league.realm === "poe2");
+  const primaryLeagues = poe2Leagues.filter(
+    (league) => !/\b(?:hardcore|ssf|solo self-found)\b/i.test(`${league.id} ${league.text}`)
+  );
+
+  return primaryLeagues[0]?.id ?? poe2Leagues[0]?.id ?? leagues[0]?.id ?? "";
+}
+
+function formatLeagueLabel(leagues: TradeLeague[], leagueId: string) {
+  if (!leagueId) {
+    return "Loading league";
+  }
+
+  return leagues.find((league) => league.id === leagueId)?.text ?? leagueId;
 }
 
 function formatPrice(listing: TradeListing) {
