@@ -54,11 +54,18 @@ This phase prepares Zoe for sustained development and shareable builds. It tight
     - Linked to the structured architecture and decision docs instead of duplicating their content.
     - Verified README formatting with `bunx prettier --check README.md`.
 
-- [ ] Verify all app entry points:
+- [x] Verify all app entry points:
   - Start the API and confirm `/health`, `/builds`, `/summaries`, and `/heatmaps/passives`.
   - Start the web app and confirm the build explorer renders.
   - Start the desktop renderer and confirm the overlay renders without Tauri.
   - Run worker scripts in fixture mode and confirm they print useful output.
+  - Completed on 2026-06-18:
+    - Started `bun run dev:api` and confirmed `/health`, `/builds`, `/summaries`, and `/heatmaps/passives` on `http://127.0.0.1:4000`; `/builds` returned live poe.ninja build rows, while summaries and passive heatmaps returned fixture-backed local data.
+    - Started `bun run dev:web` and verified `http://127.0.0.1:3000` in Chrome via Playwright; the build explorer rendered with build rows, no framework overlay, and no console errors. Screenshot captured at `.maestro/playbooks/Working/phase07-web.png`.
+    - Started `bun run dev:desktop:renderer` and verified `http://127.0.0.1:5173` in Chrome via Playwright; the overlay rendered without Tauri and loaded trade league metadata after fixing local API CORS for the Vite renderer origin. Screenshot captured at `.maestro/playbooks/Working/phase07-desktop-after-cors.png`.
+    - Ran `bun run worker:ingest:poe-ninja`, `bun run worker:summarize:builds`, and `bun run worker:aggregate:heatmaps`; all printed useful fixture-mode output.
+    - Added `http://localhost:5173` and `http://127.0.0.1:5173` to the API CORS allow-list and extended the desktop renderer CORS test.
+    - Verified the code change with `bun run test:api`, `bun run typecheck:api`, and `bunx prettier --check apps/api/src/server.ts apps/api/src/server.test.ts .maestro/playbooks/Initiation/Phase-07-Quality-and-Release-Readiness.md`.
 
 - [ ] Capture final validation status:
   - Run `bun run typecheck`, `bun run lint`, `bun run test`, `bun run build`, and `bun run format:check`.

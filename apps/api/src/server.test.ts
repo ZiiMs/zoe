@@ -78,20 +78,23 @@ describe("api server", () => {
     expect(response.headers["access-control-allow-headers"]).toBe("Content-Type, Accept");
   });
 
-  it("handles CORS preflight requests for the desktop renderer", async () => {
-    const server = createServer();
-    const response = await server.inject({
-      method: "OPTIONS",
-      url: "/trade/price-check",
-      headers: {
-        origin: "http://localhost:1420",
-        "access-control-request-method": "POST"
-      }
-    });
+  it.each(["http://localhost:1420", "http://127.0.0.1:5173"])(
+    "handles CORS preflight requests for the desktop renderer at %s",
+    async (origin) => {
+      const server = createServer();
+      const response = await server.inject({
+        method: "OPTIONS",
+        url: "/trade/price-check",
+        headers: {
+          origin,
+          "access-control-request-method": "POST"
+        }
+      });
 
-    expect(response.statusCode).toBe(204);
-    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:1420");
-  });
+      expect(response.statusCode).toBe(204);
+      expect(response.headers["access-control-allow-origin"]).toBe(origin);
+    }
+  );
 
   it("returns fixture builds", async () => {
     const server = createServer({
