@@ -42,8 +42,9 @@ This phase turns the existing Zoe monorepo into a verified, runnable prototype t
   - `bun run build:desktop`
   - Completion note: Ran all focused validation commands successfully. `bun run test:domain` passed with 6 tests, `bun run test:api` passed with 13 tests, `bun run typecheck` passed across all 9 packages, `bun run build:web` completed the Next.js production build, and `bun run build:desktop` completed the Vite renderer build. No phase-introduced failures required code changes.
 
-- [ ] Start the runnable prototype services and report the URLs:
+- [x] Start the runnable prototype services and report the URLs:
   - Start `bun run dev:api` and confirm `http://localhost:4000/health` returns `{ "ok": true }`.
   - Start `bun run dev:web` and confirm the build explorer loads at `http://localhost:3000`.
   - Start `bun run dev:desktop:renderer` if the user wants to view the overlay prototype in a browser, and report the Vite URL shown by the command.
   - Do not leave out any failing command; include exact failures and the most likely next fix in the final status.
+  - Completion note: Confirmed the runnable prototype services. The API was already listening on port 4000 from `bun --watch src/index.ts`, and `http://localhost:4000/health` returned `{"ok":true}`. The web app was already listening on port 3000 from Next.js, and `http://localhost:3000` returned HTTP 200. Started `bun run dev:desktop:renderer`; Vite reported `http://127.0.0.1:5173/`, and that URL returned HTTP 200. Captured the renderer logs in `.maestro/playbooks/Working/dev-desktop-renderer.out.log` and `.maestro/playbooks/Working/dev-desktop-renderer.err.log`. Attempted the recommended `agent-browser` verification, but the command was not installed on PATH in this environment, so verification fell back to direct HTTP checks.
