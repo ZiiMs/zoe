@@ -67,7 +67,12 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
     - The tests assert item metadata, requirements, quality, item level, socket metadata, modifier sources, normalized text, range dominant values, candidate enablement, pseudo totals, parse warnings, and stat ID attachment with local mock trade stat groups.
     - Validation run: `bun run test:domain` passed with 2 test files and 19 tests; `bun run typecheck` passed for all 9 packages; `bun run test` passed for all 9 packages.
 
-- [ ] Run parser validation and fix failures:
+- [x] Run parser validation and fix failures:
   - `bun run test:domain`
   - `bun run typecheck`
   - Include any known unsupported item text forms in the final status so the next phase can prioritize them.
+  - Completion notes:
+    - Validation run: `bun run test:domain` passed with 2 test files and 19 tests.
+    - Validation run: `bun run typecheck` passed for all 9 packages.
+    - No code fixes were required during this validation pass.
+    - Known unsupported or lower-confidence item text forms for future prioritization: corrupted or mirrored item sections, alternate language clipboard text, complex hybrid modifier wording not represented in official stat text, and future PoE2 section headings not yet covered by the parser warning rules.
