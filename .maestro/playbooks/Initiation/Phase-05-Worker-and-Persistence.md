@@ -29,10 +29,11 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - Preserve enough raw source metadata to debug normalization mismatches later.
   - Completion note: updated `packages/db/migrations/001_initial.sql` so build snapshots use `(id, league)`, summaries use `(build_id, build_league, generated_at)`, generic heatmap aggregates use `(league, kind, class_name)`, and source/debug JSONB is retained. Updated `packages/db/src/index.ts` to match those idempotent upsert keys, preserve compact build/source snapshot metadata, and store item heatmap aggregates without requiring passive-point rows. Expanded `packages/db/src/index.test.ts` and adjusted `apps/worker/src/jobs.test.ts` for the additional aggregate upsert. Verified `bun run --filter @zoe/db test`, `bun run test:worker`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/worker typecheck`, `bun run --filter @zoe/db build`, and `bun run build:worker`.
 
-- [ ] Add worker tests around ingestion and aggregation:
+- [x] Add worker tests around ingestion and aggregation:
   - Cover fixture ingestion, summary generation, passive heatmap aggregation, unknown CLI command behavior, and mocked persistence calls.
   - Keep tests deterministic by using fixed timestamps.
   - Mock upstream poe.ninja calls and database calls.
+  - Completion note: added optional source/timestamp injection points to `apps/worker/src/jobs.ts` so worker jobs remain fixture-first by default while tests can use mocked poe.ninja payloads and fixed generated timestamps. Expanded `apps/worker/src/jobs.test.ts` to cover deterministic fixture ingestion, mocked upstream normalization, summary generation, passive heatmap aggregation, and mocked persistence query calls. Existing `apps/worker/src/cli-runner.test.ts` continues to cover unknown CLI command behavior and job failure exits. Verified `bun run test:worker`, `bun run --filter @zoe/worker typecheck`, `bun run build:worker`, `bun run test`, and `bun run typecheck`.
 
 - [ ] Connect API reads to persisted data only when safe:
   - If the database layer is ready and optional, allow API routes to prefer persisted builds/summaries/heatmaps while falling back to fixtures or live upstream.
