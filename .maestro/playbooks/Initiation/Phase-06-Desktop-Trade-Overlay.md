@@ -49,9 +49,11 @@ This phase refines Zoe's Tauri overlay into a practical in-game price-checking t
   - Test coverage added in `apps/desktop/src/overlay-helpers.test.ts` for league preservation and PoE2 league preference, league label fallback, price and item-level formatting, listed-age buckets and invalid/future dates, compact modifier label cleanup, quick panel cursor positioning bounds, and settings panel constraints.
   - Validation: `bun run test:desktop`, `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run build:desktop` passed.
 
-- [ ] Run desktop validation and fix failures:
+- [x] Run desktop validation and fix failures:
   - `bun run test:desktop`
   - `bun run typecheck:desktop`
   - `bun run lint:desktop`
   - `bun run build:desktop`
   - Start `bun run dev:desktop:renderer` and verify the overlay prototype renders without Tauri.
+  - Validation notes: `bun run test:desktop`, `bun run typecheck:desktop`, `bun run lint:desktop`, and `bun run build:desktop` all passed through the desktop Turbo targets. The desktop tests replayed the `apps/desktop/src/overlay-helpers.test.ts` suite with 7 passing tests.
+  - Renderer-only verification notes: started `bun run dev:desktop:renderer` on `http://127.0.0.1:5173/`; the server returned HTTP 200. A headless Chrome DOM render confirmed the Tauri-free overlay prototype rendered the quick price panel (`Item price check`, `Search filters`, `Listings`, debug status) with no `.vite-error-overlay` present.
