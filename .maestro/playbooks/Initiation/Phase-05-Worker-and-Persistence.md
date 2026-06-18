@@ -10,10 +10,11 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - Keep worker jobs runnable without Postgres when operating in fixture mode.
   - Completion note: reviewed the named worker/domain/db files plus `packages/db/migrations/001_initial.sql`, `packages/config/src/index.ts`, `apps/worker/package.json`, root `package.json`, and `turbo.json`. Existing worker jobs are fixture-first and do not require Postgres; CLI currently prints JSON for known jobs and falls through to usage text for unknown jobs. Database code currently exposes only `createPool` and `checkDatabase`; the SQL migration already defines build snapshot, summary, and passive heatmap tables. Existing environment parsing lives in `packages/config`, and passive aggregation lives in `packages/domain/src/summarize.ts`.
 
-- [ ] Strengthen worker CLI behavior:
+- [x] Strengthen worker CLI behavior:
   - Ensure `worker:ingest:poe-ninja`, `worker:summarize:builds`, and `worker:aggregate:heatmaps` produce useful console output and non-zero exits on real failures.
   - Add clear command handling in `apps/worker/src/cli.ts` for known jobs and unknown job names.
   - Avoid long-running daemon behavior unless an existing script already expects it.
+  - Completion note: added a testable `apps/worker/src/cli-runner.ts` dispatcher used by `apps/worker/src/cli.ts`. Known worker commands now print a human-readable summary before their JSON payload, unknown commands print usage to stderr and return exit code 1, and thrown job errors return exit code 1. Added `apps/worker/src/cli-runner.test.ts` coverage for known command output, unknown command handling, and job failure handling. Added the missing root `test:worker` script for the documented validation command. Verified `bun run test:worker`, `bun run --filter @zoe/worker typecheck`, `bun run build:worker`, all three root worker scripts, and a direct unknown-command exit-code check.
 
 - [ ] Implement fixture-first persistence boundaries:
   - Define or extend `packages/db` helpers for connecting to Postgres, checking health, and storing normalized builds, summaries, and heatmap aggregates.

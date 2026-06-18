@@ -31,6 +31,7 @@
     "test:api": "turbo run test --filter=@zoe/api",
     "test:desktop": "turbo run test --filter=@zoe/desktop",
     "test:domain": "turbo run test --filter=@zoe/domain",
+    "test:worker": "turbo run test --filter=@zoe/worker",
     "worker:aggregate:heatmaps": "turbo run aggregate:heatmaps --filter=@zoe/worker",
     "worker:ingest:poe-ninja": "turbo run ingest:poe-ninja --filter=@zoe/worker",
     "worker:summarize:builds": "turbo run summarize:builds --filter=@zoe/worker",
