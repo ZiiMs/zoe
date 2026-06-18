@@ -48,10 +48,15 @@ This phase improves Zoe's core trade intelligence: converting copied PoE2 item t
     - Added domain coverage for pseudo IDs, labels, values, default minimums, covered modifier IDs, enabled pseudo candidates, and unset domain-level trade stat IDs.
     - Validation run: `bun run test:domain` passed with 1 test file and 11 tests; `bun run typecheck` passed for all 9 packages.
 
-- [ ] Strengthen official trade stat ID attachment:
+- [x] Strengthen official trade stat ID attachment:
   - Improve exact and fuzzy matching in `findTradeStatId` only where tests prove the current behavior is insufficient.
   - Prefer pseudo stat groups for pseudo candidates and exact stat groups for exact modifiers.
   - Keep unmapped candidates visible to the overlay with `tradeStatId` unset so users can debug mapping gaps.
+  - Completion notes:
+    - `packages/domain/src/trade.ts` now scopes `findTradeStatId` matching by candidate source: pseudo candidates only search pseudo stats, exact candidates prefer their own exact source group, and exact candidates never fall through to pseudo entries.
+    - Exact and fuzzy matching now compare both the display label and `normalizedText`, preserving tolerant matching without crossing pseudo/exact stat groups.
+    - Added domain regressions for explicit, implicit, and pseudo stat ID attachment when conflicting same-text entries exist, plus unmapped exact candidates that remain visible with `tradeStatId` unset.
+    - Validation run: `bun run test:domain` passed with 1 test file and 13 tests; `bun run typecheck` passed for all 9 packages; `bun run lint` passed with 7 existing Next.js `<img>` warnings in `apps/web`.
 
 - [ ] Write focused domain tests for parser and mapping behavior:
   - Add representative rare ring, rare weapon, unique item, socketed item, malformed clipboard, and mixed resistance fixtures.

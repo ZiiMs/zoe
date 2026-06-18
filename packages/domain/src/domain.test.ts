@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregatePassiveHeatmap,
+  attachTradeStatIds,
   buildTradePriceCheckRequest,
   normalizePoeNinjaBuild,
   parseTradeItemText,
@@ -393,6 +394,112 @@ Explicit Modifiers:
     expect(allElementalExact).toMatchObject({
       enabled: false,
       min: 9
+    });
+  });
+
+  it("attaches trade stat ids from source-appropriate stat groups", () => {
+    const item = parseTradeItemText(`Item Class: Rings
+Rarity: Rare
+Storm Loop
+Ruby Ring
+--------
++15% to Fire Resistance (implicit)
+--------
+Explicit Modifiers:
++23 to Strength
++12% to Chaos Resistance`);
+    const stats = [
+      {
+        id: "pseudo",
+        label: "Pseudo",
+        entries: [
+          {
+            id: "pseudo.wrong_strength",
+            text: "+# to Strength",
+            type: "pseudo"
+          },
+          {
+            id: "pseudo.pseudo_total_chaos_resistance",
+            text: "Pseudo: total chaos resistance",
+            type: "pseudo"
+          }
+        ]
+      },
+      {
+        id: "implicit",
+        label: "Implicit",
+        entries: [
+          {
+            id: "implicit.stat_implicit_fire",
+            text: "+#% to Fire Resistance",
+            type: "implicit"
+          }
+        ]
+      },
+      {
+        id: "explicit",
+        label: "Explicit",
+        entries: [
+          {
+            id: "explicit.stat_strength",
+            text: "+# to Strength",
+            type: "explicit"
+          },
+          {
+            id: "explicit.wrong_chaos",
+            text: "Pseudo: total chaos resistance",
+            type: "explicit"
+          }
+        ]
+      }
+    ];
+
+    const attached = attachTradeStatIds(item.statCandidates, stats);
+
+    expect(attached.find((candidate) => candidate.label === "+23 to Strength")).toMatchObject({
+      source: "explicit",
+      tradeStatId: "explicit.stat_strength"
+    });
+    expect(
+      attached.find((candidate) => candidate.label === "+15% to Fire Resistance (implicit)")
+    ).toMatchObject({
+      source: "implicit",
+      tradeStatId: "implicit.stat_implicit_fire"
+    });
+    expect(
+      attached.find((candidate) => candidate.id === "pseudo-total-chaos-resistance")
+    ).toMatchObject({
+      source: "pseudo",
+      tradeStatId: "pseudo.pseudo_total_chaos_resistance"
+    });
+  });
+
+  it("leaves unmapped exact trade candidates visible without a trade stat id", () => {
+    const item = parseTradeItemText(`Item Class: Quarterstaves
+Rarity: Rare
+Gale Roar
+Long Quarterstaff
+--------
+Explicit Modifiers:
++99 to unsupported Stat`);
+    const attached = attachTradeStatIds(item.statCandidates, [
+      {
+        id: "pseudo",
+        label: "Pseudo",
+        entries: [
+          {
+            id: "pseudo.wrong_unsupported",
+            text: "+# to unsupported Stat",
+            type: "pseudo"
+          }
+        ]
+      }
+    ]);
+
+    expect(attached[0]).toMatchObject({
+      label: "+99 to unsupported Stat",
+      source: "explicit",
+      tradeStatId: undefined
     });
   });
 });

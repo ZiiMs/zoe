@@ -264,27 +264,32 @@ export function findTradeStatId(
   statGroups: TradeStatGroup[]
 ) {
   const entries = statGroups.flatMap((group) => group.entries);
-  const preferredType = candidate.source === "pseudo" ? "pseudo" : undefined;
   const normalizedLabel = normalizeStatText(candidate.label);
   const normalizedText = normalizeStatText(candidate.normalizedText);
+  const candidateTexts = [normalizedLabel, normalizedText].filter(Boolean);
+  const sourceEntries =
+    candidate.source === "pseudo"
+      ? entries.filter((entry) => entry.type === "pseudo")
+      : entries.filter((entry) => entry.type === candidate.source);
+  const exactEntries =
+    candidate.source === "pseudo"
+      ? sourceEntries
+      : sourceEntries.length > 0
+        ? sourceEntries
+        : entries.filter((entry) => entry.type !== "pseudo");
 
-  const exact = entries.find(
-    (entry) =>
-      (!preferredType || entry.type === preferredType) &&
-      (normalizeStatText(entry.text) === normalizedLabel ||
-        normalizeStatText(entry.text) === normalizedText)
+  const exact = exactEntries.find((entry) =>
+    candidateTexts.includes(normalizeStatText(entry.text))
   );
   if (exact) {
     return exact.id;
   }
 
-  const fuzzy = entries.find((entry) => {
-    if (preferredType && entry.type !== preferredType) {
-      return false;
-    }
-
+  const fuzzy = exactEntries.find((entry) => {
     const text = normalizeStatText(entry.text);
-    return text.includes(normalizedLabel) || normalizedLabel.includes(text);
+    return candidateTexts.some(
+      (candidateText) => text.includes(candidateText) || candidateText.includes(text)
+    );
   });
 
   return fuzzy?.id;
