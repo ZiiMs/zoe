@@ -22,10 +22,11 @@ This phase turns the existing Zoe monorepo into a verified, runnable prototype t
   - Verify build search parameters for league, search, class, skill, gear, sort, order, and page are parsed without throwing.
   - Completion note: Added fixture-backed API smoke coverage in `apps/api/src/server.test.ts` for `/builds` query parsing, web-style `/builds/:id` detail IDs, `/summaries`, and `/heatmaps/passives`, reusing the existing Fastify `server.inject` style. Updated `apps/api/src/server.ts` to accept the singular `skill` query alias in addition to `skills`, and updated `apps/api/src/poe-ninja.ts` so fixture detail fallback works for web detail links like `Dawn of the Hunt:zoe:StormIndex` when poe.ninja is unavailable. Verified with `bun run test:api` and `bun run typecheck`.
 
-- [ ] Verify the web build explorer works against the local API or fixture fallback:
+- [x] Verify the web build explorer works against the local API or fixture fallback:
   - Start from existing `apps/web/app/page.tsx`, `apps/web/app/builds-page.tsx`, and shared `@zoe/ui` components.
   - Fix any obvious runtime, TypeScript, or hydration issue that prevents the page from rendering the build table, filters, class distribution, or fixture fallback badge.
   - Preserve the current utilitarian dashboard design and avoid adding a marketing landing page.
+  - Completion note: Verified the existing Next.js build explorer without needing code changes. `bun run typecheck:web` and `bun run build:web` both passed. Started `bun run dev:web`, loaded `http://localhost:3000` in headless system Chrome through Playwright, and confirmed the page rendered the `Build Observatory` dashboard, build ladder table, filter controls, class distribution panel, and `poe.ninja live` local API badge with no Next.js error overlay or page errors.
 
 - [ ] Verify the desktop overlay renderer can run as a browser prototype without requiring Tauri commands:
   - Use `bun run dev:desktop:renderer` for renderer-only validation rather than requiring `tauri dev`.
