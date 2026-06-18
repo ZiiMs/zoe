@@ -28,10 +28,11 @@ This phase turns the existing Zoe monorepo into a verified, runnable prototype t
   - Preserve the current utilitarian dashboard design and avoid adding a marketing landing page.
   - Completion note: Verified the existing Next.js build explorer without needing code changes. `bun run typecheck:web` and `bun run build:web` both passed. Started `bun run dev:web`, loaded `http://localhost:3000` in headless system Chrome through Playwright, and confirmed the page rendered the `Build Observatory` dashboard, build ladder table, filter controls, class distribution panel, and `poe.ninja live` local API badge with no Next.js error overlay or page errors.
 
-- [ ] Verify the desktop overlay renderer can run as a browser prototype without requiring Tauri commands:
+- [x] Verify the desktop overlay renderer can run as a browser prototype without requiring Tauri commands:
   - Use `bun run dev:desktop:renderer` for renderer-only validation rather than requiring `tauri dev`.
   - Ensure the non-Tauri path opens the overlay UI, shows the passive instructions or fixture-ready state, and does not crash because Tauri APIs are unavailable.
   - If a small code guard is needed, follow the existing `isTauriRuntime()` pattern and keep the production Tauri behavior intact.
+  - Completion note: Verified `bun run dev:desktop:renderer` at `http://127.0.0.1:5173/` in headless Chrome without Tauri. The browser rendered the quick overlay panel, `ITEM PRICE CHECK` / `READY` state, passive `Hover an item in PoE2 and press Ctrl+D.` instruction, and Search/Trade controls with no Vite error overlay or runtime errors. Added a data-URI favicon in `apps/desktop/index.html` to prevent a renderer-only `/favicon.ico` 404 during browser smoke checks. Verified with `bun run typecheck:desktop` and `bun run build:desktop`.
 
 - [ ] Run the focused validation commands and fix failures introduced by this phase:
   - `bun run test:domain`
