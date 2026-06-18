@@ -73,8 +73,12 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - No top-level docs were changed because no new environment variable was introduced.
     - Verification passed: `bun run test --filter=@zoe/config`, `bun run typecheck --filter=@zoe/config`, `bun run lint --filter=@zoe/config`, `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, `bun run build:api`, `bun run typecheck --filter=@zoe/web`, and `bun run typecheck --filter=@zoe/desktop`.
 
-- [ ] Run API validation and fix failures:
+- [x] Run API validation and fix failures:
   - `bun run test:api`
   - `bun run typecheck:api`
   - `bun run lint:api`
   - `bun run build:api`
+  - Notes:
+    - Created the Auto Run working folder at `.maestro/playbooks/Working`.
+    - Verification passed with no code changes required: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
+    - All four commands completed successfully via Turbo cache replay; API tests reported 28 passing tests in `apps/api/src/server.test.ts`.
