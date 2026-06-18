@@ -51,10 +51,14 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - Existing tests continue to cover trade stats caching, search failures, batched result fetching, stat ID resolution, successful price-check normalization, quiet successful hot paths, and truncated upstream error bodies.
     - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
-- [ ] Improve the typed API client:
+- [x] Improve the typed API client:
   - Ensure client methods cover health, builds, build detail, poe.ninja metadata, summaries, heatmaps, trade metadata, and price check.
   - Preserve helpful unreachable-API error messages for desktop and web users.
   - Add lightweight tests if there is no coverage for query string serialization or error formatting.
+  - Notes:
+    - Confirmed `packages/api-client/src/index.ts` already exposes typed methods for health, builds, build detail, poe.ninja build index/leagues, summaries, passive/item heatmaps, trade stats/leagues, and trade price check.
+    - Added `packages/api-client/src/index.test.ts` coverage for all public client methods and paths, build query string serialization, price-check POST body serialization, API error formatting, and the helpful unreachable-API message.
+    - Verification passed: `bun run test --filter=@zoe/api-client`, `bun run typecheck --filter=@zoe/api-client`, `bun run lint --filter=@zoe/api-client`, and `bun run build --filter=@zoe/api-client`.
 
 - [ ] Add environment validation where it reduces runtime ambiguity:
   - Reuse `packages/config` patterns for API port, web API base URL, desktop API base URL, and any optional upstream settings.
