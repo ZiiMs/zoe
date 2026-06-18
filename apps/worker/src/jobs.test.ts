@@ -41,7 +41,7 @@ describe("worker jobs", () => {
       summaries: 1,
       heatmapPoints: 1
     });
-    expect(queries).toHaveLength(3);
+    expect(queries).toHaveLength(4);
     expect(queries[0]?.[0]).toBe("fixture:grenadier");
   });
 });

@@ -22,11 +22,12 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - Do not require Docker or Postgres for unit tests.
   - Completion note: extended `packages/db/src/index.ts` with a generic query-client boundary, health checks, and fixture-safe store helpers for build snapshots, summaries, passive heatmap aggregates, and grouped build intelligence writes. Added `apps/worker/src/jobs.ts` `persistFixtureBuildIntelligence` as the explicit worker persistence path while leaving the default fixture CLI jobs Postgres-free. Added mock-query tests in `packages/db/src/index.test.ts` and `apps/worker/src/jobs.test.ts`; no Docker or live Postgres is required. Verified `bun run --filter @zoe/db test`, `bun run test:worker`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/worker typecheck`, `bun run --filter @zoe/db build`, and `bun run build:worker`.
 
-- [ ] Add idempotent storage behavior for build intelligence:
+- [x] Add idempotent storage behavior for build intelligence:
   - Upsert builds by stable metadata ID and league.
   - Upsert summaries by build ID and generated timestamp or source snapshot.
   - Upsert passive and item heatmap aggregates by league and kind.
   - Preserve enough raw source metadata to debug normalization mismatches later.
+  - Completion note: updated `packages/db/migrations/001_initial.sql` so build snapshots use `(id, league)`, summaries use `(build_id, build_league, generated_at)`, generic heatmap aggregates use `(league, kind, class_name)`, and source/debug JSONB is retained. Updated `packages/db/src/index.ts` to match those idempotent upsert keys, preserve compact build/source snapshot metadata, and store item heatmap aggregates without requiring passive-point rows. Expanded `packages/db/src/index.test.ts` and adjusted `apps/worker/src/jobs.test.ts` for the additional aggregate upsert. Verified `bun run --filter @zoe/db test`, `bun run test:worker`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/worker typecheck`, `bun run --filter @zoe/db build`, and `bun run build:worker`.
 
 - [ ] Add worker tests around ingestion and aggregation:
   - Cover fixture ingestion, summary generation, passive heatmap aggregation, unknown CLI command behavior, and mocked persistence calls.
