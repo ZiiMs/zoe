@@ -52,10 +52,23 @@ describe("api server", () => {
     const response = await server.inject({ method: "GET", url: "/builds" });
 
     expect(response.statusCode).toBe(200);
-    const payload = response.json<{ builds: unknown[]; source: string; total: number }>();
+    const payload = response.json<{
+      builds: Array<{ source: string; metrics?: { highestDpsSkill?: string; ehpLabel?: string } }>;
+      filters: Array<{ id: string; options: unknown[] }>;
+      source: string;
+      total: number;
+    }>();
     expect(payload.builds).toHaveLength(3);
     expect(payload.total).toBe(3);
     expect(payload.source).toBe("fixture");
+    expect(payload.builds[0]).toMatchObject({
+      source: "fixture",
+      metrics: {
+        highestDpsSkill: expect.any(String),
+        ehpLabel: expect.any(String)
+      }
+    });
+    expect(payload.filters.find((filter) => filter.id === "class")?.options.length).toBeGreaterThan(0);
   });
 
   it("parses build search parameters without throwing", async () => {
@@ -111,6 +124,19 @@ describe("api server", () => {
     expect(payload.detail.source).toBe("fixture");
     expect(payload.detail.skillGroups[0]?.name).toBe("Spark");
     expect(payload.detail.items.length).toBeGreaterThan(0);
+  });
+
+  it("returns 404 for unknown build detail ids", async () => {
+    const server = createServer({
+      fetcher: async () => new Response("upstream unavailable", { status: 503 })
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/builds/fixture%3Aunknown"
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual({ error: "Build not found" });
   });
 
   it("returns fixture summaries and passive heatmaps", async () => {
@@ -169,6 +195,22 @@ describe("api server", () => {
     ).toBe("Deadeye");
   });
 
+  it("falls back to fixture build index when poe.ninja returns malformed JSON", async () => {
+    const server = createServer({
+      fetcher: async () => new Response("{not-json")
+    });
+    const response = await server.inject({ method: "GET", url: "/poe-ninja/build-index" });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      index: { leagueBuilds: Array<{ leagueUrl: string; statistics: Array<{ className: string }> }> };
+    }>();
+    expect(payload.index.leagueBuilds[0]).toMatchObject({
+      leagueUrl: "runesofaldur",
+      statistics: expect.arrayContaining([expect.objectContaining({ className: "Martial Artist" })])
+    });
+  });
+
   it("normalizes league metadata from poe.ninja index-state", async () => {
     const server = createServer({
       fetcher: async (input) => {
@@ -223,6 +265,94 @@ describe("api server", () => {
       snapshotName: "runes-of-aldur",
       total: 10
     });
+  });
+
+  it("falls back to fixture leagues when poe.ninja league metadata is malformed", async () => {
+    const server = createServer({
+      fetcher: async (input) => {
+        if (String(input).includes("build-index-state")) {
+          return new Response("{bad-index");
+        }
+
+        return new Response("{bad-leagues");
+      }
+    });
+    const response = await server.inject({ method: "GET", url: "/poe-ninja/leagues" });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      leagues: Array<{ url: string; version: string; snapshotName: string; statistics: unknown[] }>;
+    }>();
+    expect(payload.leagues[0]).toMatchObject({
+      url: "runesofaldur",
+      version: "fixture",
+      snapshotName: "runesofaldur"
+    });
+    expect(payload.leagues[0]?.statistics.length).toBeGreaterThan(0);
+  });
+
+  it("falls back to fixture builds when poe.ninja search protobuf is malformed", async () => {
+    const server = createServer({
+      fetcher: async (input) => {
+        const url = String(input);
+
+        if (url.includes("build-index-state")) {
+          return new Response(
+            JSON.stringify({
+              leagueBuilds: [
+                {
+                  leagueName: "Runes of Aldur",
+                  leagueUrl: "runesofaldur",
+                  total: 10,
+                  status: 0,
+                  statistics: []
+                }
+              ]
+            })
+          );
+        }
+
+        if (url.includes("index-state")) {
+          return new Response(
+            JSON.stringify({
+              buildLeagues: [
+                {
+                  name: "Runes of Aldur",
+                  url: "runesofaldur",
+                  displayName: "Runes of Aldur",
+                  indexed: true,
+                  hardcore: false,
+                  version: "0015",
+                  snapshotName: "runes-of-aldur"
+                }
+              ],
+              oldBuildLeagues: []
+            })
+          );
+        }
+
+        return new Response(new Uint8Array([0xff, 0xff, 0xff]));
+      }
+    });
+    const response = await server.inject({
+      method: "GET",
+      url: "/builds?league=runesofaldur&class=Stormweaver&keystones=Raw%20Power&skills=Spark&supports=Martial%20Tempo&gear=Voltaxic%20Wand&sort=level&order=desc"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json<{
+      builds: Array<{ source: string }>;
+      filters: Array<{ id: string; options: Array<{ value: string; count: number }> }>;
+      source: string;
+    }>();
+    expect(payload.source).toBe("fixture");
+    expect(payload.builds.every((build) => build.source === "fixture")).toBe(true);
+    expect(payload.filters.find((filter) => filter.id === "class")?.options).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: "Stormweaver", count: 1 })])
+    );
+    expect(payload.filters.find((filter) => filter.id === "supports")?.options).toEqual(
+      expect.arrayContaining([expect.objectContaining({ value: "Martial Tempo" })])
+    );
   });
 
   it("decodes poe.ninja search protobuf fixtures", () => {

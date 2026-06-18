@@ -31,10 +31,15 @@ This phase hardens the Fastify API as the stable bridge between Zoe clients and 
     - Added tests for local web and desktop CORS preflights, trade stats/leagues error responses, quiet successful price checks, and truncated upstream trade errors.
     - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
-- [ ] Harden poe.ninja build routes:
+- [x] Harden poe.ninja build routes:
   - Confirm `/poe-ninja/build-index`, `/poe-ninja/leagues`, `/builds`, and `/builds/:id` normalize upstream responses and fall back to fixtures where appropriate.
   - Add or adjust tests for unavailable upstream, malformed upstream JSON, unknown build IDs, league metadata, and query parameter parsing.
   - Keep fixture responses rich enough for the web dashboard to demonstrate filtering, sorting, details, summaries, and heatmaps.
+  - Notes:
+    - Enriched `apps/api/src/fixtures.ts` build snapshots with top DPS and defense metrics and marked them as `source: "fixture"` so fallback payloads are clearer to clients.
+    - Extended `apps/api/src/server.test.ts` coverage for fixture build search payload shape, unknown build detail 404s, malformed build-index JSON fallback, malformed league metadata fallback, and malformed search protobuf fallback.
+    - Existing tests continue to cover normalized build index data, league metadata normalization, build query parameter parsing, fixture detail fallback, summaries, and passive heatmaps.
+    - Verification passed: `bun run test:api`, `bun run typecheck:api`, `bun run lint:api`, and `bun run build:api`.
 
 - [ ] Harden official trade routes:
   - Confirm `/trade/stats`, `/trade/leagues`, and `/trade/price-check` use cache TTLs, rate limiting, stat ID resolution, batched fetches, and useful error propagation.
