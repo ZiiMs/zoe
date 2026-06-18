@@ -16,10 +16,11 @@ This phase builds Zoe's background intelligence pipeline: ingesting build data, 
   - Avoid long-running daemon behavior unless an existing script already expects it.
   - Completion note: added a testable `apps/worker/src/cli-runner.ts` dispatcher used by `apps/worker/src/cli.ts`. Known worker commands now print a human-readable summary before their JSON payload, unknown commands print usage to stderr and return exit code 1, and thrown job errors return exit code 1. Added `apps/worker/src/cli-runner.test.ts` coverage for known command output, unknown command handling, and job failure handling. Added the missing root `test:worker` script for the documented validation command. Verified `bun run test:worker`, `bun run --filter @zoe/worker typecheck`, `bun run build:worker`, all three root worker scripts, and a direct unknown-command exit-code check.
 
-- [ ] Implement fixture-first persistence boundaries:
+- [x] Implement fixture-first persistence boundaries:
   - Define or extend `packages/db` helpers for connecting to Postgres, checking health, and storing normalized builds, summaries, and heatmap aggregates.
   - Keep database writes behind explicit worker code paths so tests can use in-memory fixtures and mocks.
   - Do not require Docker or Postgres for unit tests.
+  - Completion note: extended `packages/db/src/index.ts` with a generic query-client boundary, health checks, and fixture-safe store helpers for build snapshots, summaries, passive heatmap aggregates, and grouped build intelligence writes. Added `apps/worker/src/jobs.ts` `persistFixtureBuildIntelligence` as the explicit worker persistence path while leaving the default fixture CLI jobs Postgres-free. Added mock-query tests in `packages/db/src/index.test.ts` and `apps/worker/src/jobs.test.ts`; no Docker or live Postgres is required. Verified `bun run --filter @zoe/db test`, `bun run test:worker`, `bun run --filter @zoe/db typecheck`, `bun run --filter @zoe/worker typecheck`, `bun run --filter @zoe/db build`, and `bun run build:worker`.
 
 - [ ] Add idempotent storage behavior for build intelligence:
   - Upsert builds by stable metadata ID and league.

@@ -1,0 +1,114 @@
+import type { BuildSnapshot, BuildSummary, HeatmapAggregate } from "@zoe/domain";
+import { describe, expect, it, vi } from "vitest";
+import {
+  checkDatabase,
+  storeBuildIntelligence,
+  storeBuildSnapshot,
+  storeHeatmapAggregate
+} from "./index";
+
+function createMockClient() {
+  return {
+    query: vi.fn(async (_text: string, _values?: unknown[]) => ({
+      rows: [],
+      rowCount: 0,
+      command: "",
+      oid: 0,
+      fields: []
+    }))
+  };
+}
+
+const build: BuildSnapshot = {
+  metadata: {
+    id: "build-1",
+    accountName: "zoe",
+    characterName: "GrenadeMap",
+    className: "Mercenary",
+    ascendancyName: "Witchhunter",
+    level: 90,
+    league: "Dawn of the Hunt",
+    rank: 7
+  },
+  mainSkills: [{ id: "explosive-grenade", name: "Explosive Grenade", usageCount: 1 }],
+  items: [{ slot: "weapon", name: "Boomstick", rarity: "Rare", usageCount: 1 }],
+  passives: [{ passiveId: "grenade-cluster", name: "Grenade Cluster", weight: 1 }],
+  capturedAt: "2026-06-18T00:00:00.000Z",
+  source: "poe.ninja"
+};
+
+const summary: BuildSummary = {
+  id: "summary:build-1",
+  buildId: "build-1",
+  title: "GrenadeMap build summary",
+  highlights: ["Mercenary Witchhunter", "Level 90"],
+  primarySkill: "Explosive Grenade",
+  defensiveLayers: ["armour"],
+  generatedAt: "2026-06-18T00:01:00.000Z"
+};
+
+const heatmap: HeatmapAggregate = {
+  kind: "passives",
+  league: "Dawn of the Hunt",
+  points: [{ passiveId: "grenade-cluster", name: "Grenade Cluster", weight: 3 }],
+  generatedAt: "2026-06-18T00:02:00.000Z"
+};
+
+describe("database persistence helpers", () => {
+  it("checks database health through a generic query client", async () => {
+    const client = {
+      query: vi.fn(async (_text: string, _values?: unknown[]) => ({
+        rows: [{ ok: 1 }],
+        rowCount: 1,
+        command: "",
+        oid: 0,
+        fields: []
+      }))
+    };
+
+    await expect(checkDatabase(client)).resolves.toBe(true);
+
+    expect(client.query).toHaveBeenCalledWith("select 1 as ok");
+  });
+
+  it("stores normalized build snapshots with the full payload for debugging", async () => {
+    const client = createMockClient();
+
+    await storeBuildSnapshot(client, build);
+
+    expect(client.query).toHaveBeenCalledTimes(1);
+    const values = client.query.mock.calls[0]?.[1];
+    expect(values?.[0]).toBe("build-1");
+    expect(values?.[1]).toBe("Dawn of the Hunt");
+    expect(values?.[9]).toBe(JSON.stringify(build));
+  });
+
+  it("stores league-wide heatmaps with an explicit all-classes key", async () => {
+    const client = createMockClient();
+
+    await expect(storeHeatmapAggregate(client, heatmap)).resolves.toBe(1);
+
+    const values = client.query.mock.calls[0]?.[1];
+    expect(values?.[0]).toBe("Dawn of the Hunt");
+    expect(values?.[1]).toBe("all");
+    expect(values?.[2]).toBe("grenade-cluster");
+  });
+
+  it("stores build intelligence records without requiring a real Postgres connection", async () => {
+    const client = createMockClient();
+
+    await expect(
+      storeBuildIntelligence(client, {
+        builds: [build],
+        summaries: [summary],
+        heatmaps: [heatmap]
+      })
+    ).resolves.toEqual({
+      builds: 1,
+      summaries: 1,
+      heatmapPoints: 1
+    });
+
+    expect(client.query).toHaveBeenCalledTimes(3);
+  });
+});

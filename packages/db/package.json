@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@zoe/domain": "workspace:*",
     "pg": "^8.16.0"
   },
   "devDependencies": {
